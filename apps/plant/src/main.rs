@@ -60,7 +60,7 @@ struct State {
 }
 
 fn main() {
-    elafry::wrapper::run(
+    wrapper::run(
         TestApp {
             send_message_count: 0,
             receive_message_count: 0,
@@ -86,14 +86,14 @@ struct TestApp {
     writer: csv::Writer<std::fs::File>,
 }
 
-impl elafry::wrapper::App for TestApp {
-    fn init(&mut self, _services: &mut elafry::wrapper::Services) {
+impl wrapper::App for TestApp {
+    fn init(&mut self, _services: &mut wrapper::Services) {
         self.send_message_count = 0;
         self.receive_message_count = 0;
         println!("Starting up!");
     }
 
-    fn run(&mut self, services: &mut elafry::wrapper::Services) {
+    fn run(&mut self, services: &mut wrapper::Services) {
         let mut missmatch = 0;
 
         // do stuff with messages
@@ -159,7 +159,7 @@ impl elafry::wrapper::App for TestApp {
             state_count: self.state.state_count,
         };
         let sensor_data_buf = bincode::serialize(&sensor_data).unwrap();
-        let message = elafry::wrapper::communications::Message {
+        let message = wrapper::communications::Message {
             channel_id: 1,
             data: sensor_data_buf,
             count: self.send_message_count,

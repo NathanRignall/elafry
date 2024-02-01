@@ -5,12 +5,12 @@ import matplotlib.pyplot as plt
 heights = []
 thrusts = []
 setpoints = []
-with open('output.csv', 'r') as csvfile:
+with open('plant.csv', 'r') as csvfile:
     csvreader = csv.reader(csvfile)
     for row in csvreader:
-        heights.append(float(row[1]))
-        thrusts.append(float(row[2]))
-        setpoints.append(float(row[3]))
+        heights.append(float(row[2]))
+        thrusts.append(float(row[3]))
+        setpoints.append(float(row[4]))
 
 # Plotting
 plt.figure(figsize=(10, 6))

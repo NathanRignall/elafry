@@ -6,7 +6,7 @@ use tokio::net::UnixListener;
 use tokio::sync::mpsc;
 use tokio::sync::{Mutex, RwLock};
 
-use crate::wrapper::communications::Message;
+use wrapper::communications::Message;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct Address {

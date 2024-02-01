@@ -19,12 +19,10 @@ impl Agent {
         println!("demo_task1");
 
         self.router.add_listener(1).await;
-        let process1 = self.runner.start("target/release/demo_plant");
+        let _process1 = self.runner.start("target/release/plant");
 
         self.router.add_listener(2).await;
-        let process2 = self.runner.start("target/release/demo_fcsa");
-
-
+        let _process2 = self.runner.start("target/release/fcs_a");
 
         // add required routes
         self.router
@@ -59,7 +57,7 @@ impl Agent {
         println!("demo_task2");
 
         self.router.add_listener(3).await;
-        let process3 = self.runner.start("target/release/demo_fcsb");
+        let _process3 = self.runner.start("target/release/fcs_b");
 
         // remove old routes
         self.router
@@ -105,9 +103,5 @@ impl Agent {
                 },
             )
             .await;
-    }
-
-    pub fn demo_task3(&self) {
-        println!("demo_task3")
     }
 }

@@ -66,7 +66,7 @@ struct State {
 }
 
 fn main() {
-    elafry::wrapper::run(
+    wrapper::run(
         TestApp {
             send_message_count: 0,
             receive_message_count: 0,
@@ -75,7 +75,7 @@ fn main() {
                 thrust: 0.0,
                 state_count: 0,
             },
-            pid_controller: PIDController::new(7.5, 0.025, 400.0, 10.0),
+            pid_controller: PIDController::new(1.0, 0.005, 0.5, 0.0),
         },
         "/tmp/sock-2",
         100,
@@ -89,14 +89,14 @@ struct TestApp {
     pid_controller: PIDController,
 }
 
-impl elafry::wrapper::App for TestApp {
-    fn init(&mut self, _services: &mut elafry::wrapper::Services) {
+impl wrapper::App for TestApp {
+    fn init(&mut self, _services: &mut wrapper::Services) {
         self.receive_message_count = 0;
         self.send_message_count = 0;
         println!("Starting up!");
     }
 
-    fn run(&mut self, services: &mut elafry::wrapper::Services) {
+    fn run(&mut self, services: &mut wrapper::Services) {
         // do stuff with messages
         loop {
             let message = services.communications.get_message(1);
@@ -138,7 +138,7 @@ impl elafry::wrapper::App for TestApp {
             state_count: self.state.state_count,
         };
         let control_data_buf = bincode::serialize(&control_data).unwrap();
-        let message = elafry::wrapper::communications::Message {
+        let message = wrapper::communications::Message {
             channel_id: 2,
             data: control_data_buf,
             count: self.send_message_count,
