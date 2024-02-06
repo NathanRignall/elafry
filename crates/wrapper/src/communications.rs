@@ -105,10 +105,6 @@ impl Manager {
         // if going to block, don't send message
         match stream.write_all(&length_buf) {
             Ok(_) => (),
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                println!("Failed to send message; err = {:?}", e);
-                return;
-            },
             Err(e) => panic!("encountered IO error: {}", e),
         }
     }

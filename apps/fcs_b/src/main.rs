@@ -77,7 +77,7 @@ fn main() {
             },
             pid_controller: PIDController::new(1.0, 0.005, 0.5, 0.0),
         },
-        "/tmp/sock-2",
+        "/tmp/sock-3",
         100,
     );
 }
