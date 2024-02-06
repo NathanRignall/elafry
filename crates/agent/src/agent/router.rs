@@ -44,7 +44,7 @@ impl Router {
 
         std::thread::spawn(move || {
             let mut last_time;
-            let period = std::time::Duration::from_micros(1_000_000 / 1000 as u64);
+            let period = std::time::Duration::from_micros(1_000_000 / 500 as u64);
 
             loop {
                 last_time = std::time::Instant::now();

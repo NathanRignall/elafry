@@ -4,13 +4,12 @@ use serde::{Deserialize, Serialize};
 pub struct SensorData {
     position: f64,
     setpoint: f64,
-    state_count: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct ControlData {
     thrust: f64,
-    state_count: u32,
+    org_timestamp: u64,
 }
 
 struct PlantModel {
@@ -56,8 +55,6 @@ struct State {
     thrust: f64,
     setpoint: f64,
     state_count: u32,
-    send_state_count: u32,
-    receive_state_count: u32,
 }
 
 fn main() {
@@ -69,15 +66,14 @@ fn main() {
                 thrust: 0.0,
                 setpoint: 0.0,
                 state_count: 0,
-                send_state_count: 0,
-                receive_state_count: 0,
             },
             plant_model: PlantModel::new(),
             writer: csv::Writer::from_path("plant.csv").unwrap(),
             loop_count: 0,
+            last_timestamp: 0,
         },
         "/tmp/sock-1",
-        500,
+        250,
     );
 }
 
@@ -88,6 +84,7 @@ struct TestApp {
     plant_model: PlantModel,
     writer: csv::Writer<std::fs::File>,
     loop_count: u32,
+    last_timestamp: u64,
 }
 
 impl wrapper::App for TestApp {
@@ -124,7 +121,7 @@ impl wrapper::App for TestApp {
                     };
 
                     self.state.thrust = control_data.thrust;
-                    self.state.receive_state_count = control_data.state_count;
+                    self.last_timestamp = control_data.org_timestamp;
                 }
                 None => break,
             }
@@ -154,40 +151,44 @@ impl wrapper::App for TestApp {
             self.state.setpoint = 10.0;
         }
 
-        // form sensor data
-        let sensor_data = SensorData {
-            position: self.plant_model.get_position(),
-            setpoint: self.state.setpoint,
-            state_count: self.state.state_count,
-        };
-
         // send message every 5 loops
         if self.loop_count % 5 == 0 {
-            self.state.send_state_count = self.state.state_count;
+            let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_micros() as u64;
+    
+            // form sensor data
+            let sensor_data = SensorData {
+                position: self.plant_model.get_position(),
+                setpoint: self.state.setpoint,
+            };
+
             self.send_message_count += 1;
             let sensor_data_buf = bincode::serialize(&sensor_data).unwrap();
             let message = wrapper::communications::Message {
                 channel_id: 1,
                 data: sensor_data_buf,
                 count: self.send_message_count,
-                timestamp: std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_micros() as u64,
+                timestamp: timestamp,
             };
             services.communications.send_message(message);
-        }
 
-        // write to csv
-        self.writer
-            .serialize((
-                self.state.send_state_count,
-                self.state.receive_state_count,
-                sensor_data.position,
-                self.state.thrust,
-                self.state.setpoint,
-            ))
-            .unwrap();
+            // calculate difference in time between now and last timestamp
+            let time_diff = timestamp - self.last_timestamp;
+
+            // write to csv
+            self.writer
+                .serialize((
+                    timestamp,
+                    self.last_timestamp,
+                    time_diff,
+                    sensor_data.position,
+                    self.state.thrust,
+                    self.state.setpoint,
+                ))
+                .unwrap();
+        }
 
         // kill after 1000 iterations
         if self.state.state_count == 30000 {

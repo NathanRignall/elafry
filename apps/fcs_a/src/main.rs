@@ -4,13 +4,12 @@ use serde::{Deserialize, Serialize};
 pub struct SensorData {
     position: f64,
     setpoint: f64,
-    state_count: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct ControlData {
     thrust: f64,
-    state_count: u32,
+    org_timestamp: u64,
 }
 
 struct PIDController {
@@ -62,7 +61,7 @@ impl PIDController {
 struct State {
     position: f64,
     thrust: f64,
-    state_count: u32,
+    org_timestamp: u64,
 }
 
 fn main() {
@@ -73,7 +72,7 @@ fn main() {
             state: State {
                 position: 0.0,
                 thrust: 0.0,
-                state_count: 0,
+                org_timestamp: 0,
             },
             pid_controller: PIDController::new(1.0, 0.005, 0.5, 0.0),
         },
@@ -97,6 +96,11 @@ impl wrapper::App for TestApp {
     }
 
     fn run(&mut self, services: &mut wrapper::Services) {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_micros() as u64;
+
         // do stuff with messages
         loop {
             let message = services.communications.get_message(1);
@@ -122,7 +126,7 @@ impl wrapper::App for TestApp {
 
                     self.state.position = sensor_data.position;
                     self.pid_controller.set_setpoint(sensor_data.setpoint);
-                    self.state.state_count = sensor_data.state_count;
+                    self.state.org_timestamp = message.timestamp;
                 }
                 None => break,
             }
@@ -135,17 +139,14 @@ impl wrapper::App for TestApp {
         self.send_message_count += 1;
         let control_data = ControlData {
             thrust: self.state.thrust,
-            state_count: self.state.state_count,
+            org_timestamp: self.state.org_timestamp,
         };
         let control_data_buf = bincode::serialize(&control_data).unwrap();
         let message = wrapper::communications::Message {
             channel_id: 2,
             data: control_data_buf,
             count: self.send_message_count,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_micros() as u64,
+            timestamp: timestamp,
         };
         services.communications.send_message(message);
     }

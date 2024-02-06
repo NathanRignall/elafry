@@ -63,7 +63,7 @@ pub fn run<T: App + 'static>(app: T, path: &str, frequency: u32) {
         if duration < period {
             std::thread::sleep(period - duration);
         } else {
-            println!("Warning: loop took longer than period {}us", period.as_micros());
+            println!("Warning: loop took longer than period {}us", duration.as_micros());
         }
     }
 
