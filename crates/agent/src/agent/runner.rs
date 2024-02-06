@@ -29,6 +29,7 @@ impl Runner {
         let _process = spawn(move || {
             let mut child = Command::new(name_clone)
                 .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
                 .spawn()
                 .unwrap();
 

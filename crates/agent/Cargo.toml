@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 wrapper = {workspace = true}
 
-tokio = { workspace = true }
 bincode = { workspace = true }
+uuid = { workspace = true }

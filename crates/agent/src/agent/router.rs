@@ -1,10 +1,8 @@
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::unix::OwnedWriteHalf;
-use tokio::net::UnixListener;
-use tokio::sync::mpsc;
-use tokio::sync::{Mutex, RwLock};
+use std::io::{Read, Write};
+use std::os::unix::net::{UnixListener, UnixStream};
+use std::sync::{mpsc, Arc, Mutex, RwLock};
+use uuid::Uuid;
 
 use wrapper::communications::Message;
 
@@ -14,218 +12,268 @@ pub struct Address {
     pub channel_id: u32,
 }
 
+struct Listener {
+    id: u32,
+    path: String,
+    state: Arc<Mutex<bool>>,
+    stream: Option<UnixStream>,
+    listener: UnixListener,
+}
+
 pub struct Router {
-    listeners: HashMap<u32, mpsc::Sender<()>>,
+    listeners: Arc<RwLock<HashMap<u32, Listener>>>,
     routes: Arc<RwLock<HashMap<Address, Address>>>,
-    writers: Arc<RwLock<HashMap<u32, Arc<Mutex<OwnedWriteHalf>>>>>,
+    exit_buffer: Arc<Mutex<HashMap<u32, Vec<Message>>>>,
 }
 
 impl Router {
-    pub fn new () -> Router {
+    pub fn new() -> Router {
         Router {
-            listeners: HashMap::new(),
+            listeners: Arc::new(RwLock::new(HashMap::new())),
             routes: Arc::new(RwLock::new(HashMap::new())),
-            writers: Arc::new(RwLock::new(HashMap::new())),
+            exit_buffer: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
-    pub async fn add_listener(&mut self, id: u32) {
+    pub fn start(&mut self) {
+        println!("Router::start");
+        // start a thread
+        let listeners_clone = Arc::clone(&self.listeners);
+        let routes_clone = Arc::clone(&self.routes);
+        let exit_buffer_clone = Arc::clone(&self.exit_buffer);
+
+        std::thread::spawn(move || {
+            let mut last_time;
+            let period = std::time::Duration::from_micros(1_000_000 / 200 as u64);
+
+            loop {
+                last_time = std::time::Instant::now();
+
+                {
+                    let mut listeners_lock = listeners_clone.write().unwrap();
+
+                    // check for new connections
+                    for (id, listener) in listeners_lock.iter_mut() {
+                        if *listener.state.lock().unwrap() {
+                            continue;
+                        }
+
+                        match listener.listener.accept() {
+                            Ok((stream, _)) => {
+                                println!("Accepted connection on: {}", id);
+
+                                listener.stream = Some(stream);
+
+                                if let Some(stream) = &listener.stream {
+                                    stream.set_nonblocking(true).unwrap();
+
+                                    let mut state_lock = listener.state.lock().unwrap();
+                                    *state_lock = true;
+                                }
+                            }
+                            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                            Err(e) => {
+                                println!("Failed to accept connection; err = {:?}", e);
+                            }
+                        }
+                    }
+
+                    // check for data
+                    for (id, listener) in listeners_lock.iter_mut() {
+                        if !*listener.state.lock().unwrap() {
+                            continue;
+                        }
+
+                        let mut stream = listener.stream.as_ref().unwrap();
+
+                        let mut length_buf = [0; 4];
+
+                        // loop for a maximum of 10 times until no more data is available
+                        for _ in 0..1000 {
+                            match stream.read_exact(&mut length_buf) {
+                                Ok(_) => {
+                                    // get length of message
+                                    let length = u32::from_be_bytes(length_buf);
+
+                                    // don't read if length is 0
+                                    if length == 0 {
+                                        continue;
+                                    }
+
+                                    // create buffer with length
+                                    let mut message_buf = vec![0; length as usize];
+
+                                    // read the message
+                                    stream.read_exact(&mut message_buf).unwrap();
+
+                                    // deserialize message
+                                    let message: Message = match bincode::deserialize(&message_buf)
+                                    {
+                                        Ok(message) => message,
+                                        Err(e) => {
+                                            println!(
+                                                "Failed to deserialize message; err = {:?}",
+                                                e
+                                            );
+                                            continue;
+                                        }
+                                    };
+
+                                    // look for a route
+                                    let routes_lock = routes_clone.read().unwrap();
+
+                                    let destination: Option<Address>;
+                                    {
+                                        destination = routes_lock
+                                            .get(&Address {
+                                                app_id: *id,
+                                                channel_id: message.channel_id,
+                                            })
+                                            .cloned();
+                                    }
+
+                                    match destination {
+                                        Some(destination) => {
+                                            // get a lock on the exit buffer
+                                            let mut exit_buffer_lock =
+                                                exit_buffer_clone.lock().unwrap();
+
+                                            // insert the message into the exit buffer
+                                            match exit_buffer_lock.get_mut(&destination.app_id) {
+                                                Some(buffer) => {
+                                                    buffer.push(message);
+                                                }
+                                                None => {
+                                                    exit_buffer_lock
+                                                        .insert(destination.app_id, vec![message]);
+                                                }
+                                            }
+                                        }
+                                        None => {
+                                            // println!("No route found for: {:?}", Address { app_id: *id, channel_id: message.channel_id });
+                                        }
+                                    }
+                                }
+                                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                                    break;
+                                }
+                                Err(ref e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                                    println!("Connection closed on: {}", id);
+                                    let mut state_lock = listener.state.lock().unwrap();
+                                    *state_lock = false;
+                                    break;
+                                }
+                                Err(e) => {
+                                    println!("Failed to read from socket; err = {:?}", e);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // check for data to send to clear the exit buffer
+                    for (id, listener) in listeners_lock.iter_mut() {
+                        if !*listener.state.lock().unwrap() {
+                            continue;
+                        }
+
+                        let mut stream = listener.stream.as_ref().unwrap();
+
+                        let mut exit_buffer_lock = exit_buffer_clone.lock().unwrap();
+
+                        let messages = match exit_buffer_lock.get_mut(&id) {
+                            Some(messages) => messages,
+                            None => {
+                                continue;
+                            }
+                        };
+
+                        for message in messages.iter() {
+                            let message_buf = bincode::serialize(&message).unwrap();
+
+                            let length = message_buf.len() as u32;
+
+                            let length_buf = length.to_be_bytes();
+
+                            let combined_buf = [length_buf.to_vec(), message_buf].concat();
+
+                            match stream.write_all(&combined_buf) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    println!("Failed to write to socket; err = {:?}", e);
+                                    break;
+                                }
+                            }
+                        }
+
+                        exit_buffer_lock.remove(id);
+                    }
+                }
+
+                let now = std::time::Instant::now();
+                let duration = now.duration_since(last_time);
+
+                if duration < period {
+                    std::thread::sleep(period - duration);
+                } else {
+                    println!(
+                        "Warning: loop took longer than period {:?}ms",
+                        duration.as_millis()
+                    );
+                }
+            }
+        });
+    }
+
+    pub fn add_listener(&mut self, id: u32) {
         let path = format!("/tmp/sock-{}", id);
 
         println!("Adding listener: {}", path);
 
-        // delete the socket file if it already exists
         if std::path::Path::new(&path).exists() {
             std::fs::remove_file(&path).unwrap();
         }
 
         // create a new listener
-        let (tx, mut rx) = mpsc::channel(1);
-        let listener = UnixListener::bind(path.clone()).unwrap();
-        self.listeners.insert(id, tx);
+        let listener = UnixListener::bind(&path).unwrap();
 
-        // create a new state
-        let connection_closed = Arc::new(Mutex::new(false));
+        let mut listeners_lock = self.listeners.write().unwrap();
 
-        // clone the state
-        let routes_clone = Arc::clone(&self.routes);
-        let writers_clone = Arc::clone(&self.writers);
+        let listener = Listener {
+            id,
+            path,
+            state: Arc::new(Mutex::new(false)),
+            stream: None,
+            listener,
+        };
 
-        tokio::spawn(async move {
-            println!("Listening on: {}", path);
-            loop {
-                tokio::select! {
-                    Ok((stream, _)) = listener.accept() => {
-                        println!("Accepted connection on: {}", id);
+        // set the listener to non-blocking
+        listener.listener.set_nonblocking(true).unwrap();
 
-                        let connection_closed_clone = Arc::clone(&connection_closed);
+        // insert the listener
+        listeners_lock.insert(id, listener);
 
-                        // clone the state
-                        let nested_routes_clone = Arc::clone(&routes_clone);
-                        let nested_writers_clone = Arc::clone(&writers_clone);
-
-                        tokio::spawn(async move {
-
-                            println!("Handling connection on: {}", id);
-
-                            // get a reader and add the writer to the writers
-                            let mut reader = {
-                                let mut writers_lock = nested_writers_clone.write().await;
-                                let (reader, writer) = stream.into_split();
-                                writers_lock.insert(id, Arc::new(Mutex::new(writer)));
-                                reader
-                            };
-
-                            // loop until the connection is closed
-                            loop {
-                                if *connection_closed_clone.lock().await {
-                                    println!("X1 Connection closed by controller on: {}", id);
-                                    break;
-                                }
-
-                                let mut source_length_buf = [0; 4];
-
-                                let read_future = reader.read_exact(&mut source_length_buf);
-
-                                tokio::select! {
-                                    result = read_future => {
-                                        match result {
-                                            Ok(_) => {
-                                                // get the length of the message
-                                                let length = u32::from_be_bytes(source_length_buf) as usize;
-
-                                                // read the message
-                                                let mut source_message_buf = vec![0; length];
-                                                reader.read_exact(&mut source_message_buf).await.unwrap();
-
-                                                // deserialize the message
-                                                let source_message: Message = match bincode::deserialize(&source_message_buf) {
-                                                    Ok(message) => message,
-                                                    Err(e) => {
-                                                        println!("Failed to deserialize message; err = {:?}", e);
-                                                        continue;
-                                                    }
-                                                };
-
-                                                // find the destination address
-                                                let nested_routes_lock = nested_routes_clone.read().await;
-                                                let destination: Option<Address>;
-                                                {
-                                                    destination = nested_routes_lock.get(&Address { app_id: id, channel_id: source_message.channel_id }).cloned();
-                                                }
-
-                                                match destination {
-                                                    Some(destination) => {
-                                                        // get the writer
-                                                        let writers_lock = nested_writers_clone.read().await;
-                                                        let writer = writers_lock.get(&destination.app_id).cloned();
-
-                                                        match writer {
-                                                            Some(writer) => {
-                                                                // create a new message
-                                                                let destination_message = Message {
-                                                                    channel_id: destination.channel_id,
-                                                                    data: source_message.data,
-                                                                    count: source_message.count,
-                                                                    timestamp: source_message.timestamp,
-                                                                };
-
-                                                                // serialize the message
-                                                                let destination_message_buf = bincode::serialize(&destination_message).unwrap();
-
-                                                                // get the length of the message
-                                                                let length = destination_message_buf.len();
-
-                                                                // create a buffer for the length
-                                                                let mut length = length.to_be_bytes();
-
-                                                                // format final message
-                                                                let mut complete_message_buf = Vec::from(length.as_mut());
-                                                                complete_message_buf.append(&mut destination_message_buf.clone());
-
-                                                                // get a lock on the writer
-                                                                let mut writer_lock = writer.lock().await;
-
-                                                                // try to write the message if failed continue
-                                                                match writer_lock.write(&complete_message_buf).await {
-                                                                    Ok(_) => {
-                                                                        // println!("Forwarded message from: {:?} to: {:?}", Address { app_id: id, channel_id: destination_message.channel_id }, destination)
-                                                                    }
-                                                                    Err(e) => {
-                                                                        println!("Failed to write to socket; err = {:?}", e);
-                                                                        continue;
-                                                                    }
-                                                                };
-
-                                                            }
-                                                            None => {
-                                                                // println!("No stream found for destination: {:?}", destination);
-                                                            }
-                                                        }
-                                                    }
-                                                    None => {
-                                                        // println!("No route found for source: {:?}", Address { app_id: id, channel_id: source_message.channel_id });
-                                                    }
-                                                }
-                                            }
-                                            Err(ref e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                                                println!("Connection closed by client on: {}", id);
-
-                                                // remove the writer
-                                                let mut writers_lock = nested_writers_clone.write().await;
-                                                writers_lock.remove(&id);
-
-                                                break;
-                                            }
-                                            Err(e) => {
-                                                println!("Failed to read from socket; err = {:?}", e);
-                                                break;
-                                            }
-                                        }
-                                    }
-
-                                    _ = async {
-                                        while !*connection_closed_clone.lock().await {
-                                            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                                        }
-                                    } => {
-                                        println!("X2 Connection closed by controller on: {}", id);
-                                        return;
-                                    }
-                            }
-                        }
-                        });
-                    }
-                    _ = rx.recv() => {
-                        *connection_closed.lock().await = true;
-                        println!("Closed connection on: {}", path);
-                        break;
-                    }
-                }
-            }
-            std::fs::remove_file(path).unwrap(); // Clean up the socket file
-        });
+        println!("Finished adding listener");
     }
 
     pub fn remove_listener(&mut self, id: u32) {
-        let path = format!("/tmp/sock-{}", id);
-
-        println!("Removing listener: {}", path);
-        if let Some(tx) = self.listeners.remove(&id) {
-            println!("Sending close signal to listener: {}", path);
-            let _ = tx.send(());
-        }
+        let mut listeners_lock = self.listeners.write().unwrap();
+        listeners_lock.remove(&id);
     }
 
-    pub async fn add_route(&mut self, source: Address, destination: Address) {
+    pub fn add_route(&mut self, source: Address, destination: Address) {
         println!("Adding route: {:?} -> {:?}", source, destination);
-        let mut route_lock = self.routes.write().await;
+        let mut route_lock = self.routes.write().unwrap();
         route_lock.insert(source, destination);
+
+        println!("finished adding route");
     }
 
-    pub async fn remove_route(&mut self, source: Address) {
+    pub fn remove_route(&mut self, source: Address) {
         println!("Removing route: {:?}", source);
-        let mut route_lock = self.routes.write().await;
+        let mut route_lock = self.routes.write().unwrap();
         route_lock.remove(&source);
+
+        println!("finished removing route");
     }
 }
