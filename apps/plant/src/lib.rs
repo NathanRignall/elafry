@@ -57,26 +57,6 @@ struct State {
     state_count: u32,
 }
 
-fn main() {
-    wrapper::run(
-        TestApp {
-            send_message_count: 0,
-            receive_message_count: 0,
-            state: State {
-                thrust: 0.0,
-                setpoint: 0.0,
-                state_count: 0,
-            },
-            plant_model: PlantModel::new(),
-            writer: csv::Writer::from_path("plant.csv").unwrap(),
-            loop_count: 0,
-            last_timestamp: 0,
-        },
-        "/tmp/sock-1",
-        250,
-    );
-}
-
 struct TestApp {
     send_message_count: u32,
     receive_message_count: u32,
@@ -87,14 +67,14 @@ struct TestApp {
     last_timestamp: u64,
 }
 
-impl wrapper::App for TestApp {
-    fn init(&mut self, _services: &mut wrapper::Services) {
+impl elafry::Component for TestApp {
+    fn init(&mut self, _services: &mut elafry::Services) {
         self.send_message_count = 0;
         self.receive_message_count = 0;
         println!("Starting up!");
     }
 
-    fn run(&mut self, services: &mut wrapper::Services) {
+    fn run(&mut self, services: &mut elafry::Services) {
         self.loop_count += 1;
 
         // do stuff with messages
@@ -151,50 +131,68 @@ impl wrapper::App for TestApp {
             self.state.setpoint = 10.0;
         }
 
-        // send message every 5 loops
-        if self.loop_count % 5 == 0 {
-            let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_micros() as u64;
-    
-            // form sensor data
-            let sensor_data = SensorData {
-                position: self.plant_model.get_position(),
-                setpoint: self.state.setpoint,
-            };
+        let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_micros() as u64;
 
-            self.send_message_count += 1;
-            let sensor_data_buf = bincode::serialize(&sensor_data).unwrap();
-            let message = wrapper::communications::Message {
-                channel_id: 1,
-                data: sensor_data_buf,
-                count: self.send_message_count,
-                timestamp: timestamp,
-            };
-            services.communications.send_message(message);
+        // form sensor data
+        let sensor_data = SensorData {
+            position: self.plant_model.get_position(),
+            setpoint: self.state.setpoint,
+        };
 
-            // calculate difference in time between now and last timestamp
-            let time_diff = timestamp - self.last_timestamp;
+        self.send_message_count += 1;
+        let sensor_data_buf = bincode::serialize(&sensor_data).unwrap();
+        let message = elafry::communications::Message {
+            channel_id: 1,
+            data: sensor_data_buf,
+            count: self.send_message_count,
+            timestamp: timestamp,
+        };
+        services.communications.send_message(message);
 
-            // write to csv
-            self.writer
-                .serialize((
-                    timestamp,
-                    self.last_timestamp,
-                    time_diff,
-                    sensor_data.position,
-                    self.state.thrust,
-                    self.state.setpoint,
-                ))
-                .unwrap();
-        }
+        // calculate difference in time between now and last timestamp
+        let time_diff = timestamp - self.last_timestamp;
+
+        // write to csv
+        self.writer
+            .serialize((
+                timestamp,
+                self.last_timestamp,
+                time_diff,
+                sensor_data.position,
+                self.state.thrust,
+                self.state.setpoint,
+            ))
+            .unwrap();
 
         // kill after 1000 iterations
-        if self.state.state_count == 30000 {
+        if self.state.state_count == 6000 {
             self.writer.flush().unwrap();
             println!("Done!");
             std::process::exit(0);
         }
     }
+
+    fn hello(&self) {
+        println!("Hello, World! (Plant)");
+    }
+}
+
+#[no_mangle]
+pub extern "Rust" fn create_component() -> Box<dyn elafry::Component> {
+    Box::new(TestApp {
+        send_message_count: 0,
+        receive_message_count: 0,
+        state: State {
+            thrust: 0.0,
+            setpoint: 0.0,
+            state_count: 0,
+        },
+        plant_model: PlantModel::new(),
+        writer: csv::Writer::from_path("plant.csv").unwrap(),
+        loop_count: 0,
+        last_timestamp: 0,
+    })
 }

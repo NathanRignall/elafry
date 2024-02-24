@@ -8,9 +8,9 @@ setpoints = []
 with open('plant.csv', 'r') as csvfile:
     csvreader = csv.reader(csvfile)
     for row in csvreader:
-        heights.append(float(row[2]))
-        thrusts.append(float(row[3]))
-        setpoints.append(float(row[4]))
+        heights.append(float(row[3]))
+        thrusts.append(float(row[4]))
+        setpoints.append(float(row[5]))
 
 # Plotting
 plt.figure(figsize=(10, 6))

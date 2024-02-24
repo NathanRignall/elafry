@@ -64,23 +64,6 @@ struct State {
     org_timestamp: u64,
 }
 
-fn main() {
-    wrapper::run(
-        TestApp {
-            send_message_count: 0,
-            receive_message_count: 0,
-            state: State {
-                position: 0.0,
-                thrust: 0.0,
-                org_timestamp: 0,
-            },
-            pid_controller: PIDController::new(1.0, 0.005, 0.5, 0.0),
-        },
-        "/tmp/sock-2",
-        100,
-    );
-}
-
 struct TestApp {
     send_message_count: u32,
     receive_message_count: u32,
@@ -88,14 +71,14 @@ struct TestApp {
     pid_controller: PIDController,
 }
 
-impl wrapper::App for TestApp {
-    fn init(&mut self, _services: &mut wrapper::Services) {
+impl elafry::Component for TestApp {
+    fn init(&mut self, _services: &mut elafry::Services) {
         self.receive_message_count = 0;
         self.send_message_count = 0;
         println!("Starting up!");
     }
 
-    fn run(&mut self, services: &mut wrapper::Services) {
+    fn run(&mut self, services: &mut elafry::Services) {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -142,7 +125,7 @@ impl wrapper::App for TestApp {
             org_timestamp: self.state.org_timestamp,
         };
         let control_data_buf = bincode::serialize(&control_data).unwrap();
-        let message = wrapper::communications::Message {
+        let message = elafry::communications::Message {
             channel_id: 2,
             data: control_data_buf,
             count: self.send_message_count,
@@ -150,4 +133,22 @@ impl wrapper::App for TestApp {
         };
         services.communications.send_message(message);
     }
+
+    fn hello(&self) {
+        println!("Hello, World! (FCS B)");
+    }
+}
+
+#[no_mangle]
+pub extern "Rust" fn create_component() -> Box<dyn elafry::Component> {
+    Box::new(TestApp {
+        send_message_count: 0,
+        receive_message_count: 0,
+        state: State {
+            position: 0.0,
+            thrust: 0.0,
+            org_timestamp: 0,
+        },
+        pid_controller: PIDController::new(1.0, 0.005, 0.5, 0.0),
+    })
 }

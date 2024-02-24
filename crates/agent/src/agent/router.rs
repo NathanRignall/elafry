@@ -1,19 +1,18 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
-use std::sync::{mpsc, Arc, Mutex, RwLock};
-use uuid::Uuid;
+use std::sync::{Arc, Mutex, RwLock};
 
-use wrapper::communications::Message;
+use elafry::communications::Message;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct Address {
-    pub app_id: u32,
+    pub app_id: uuid::Uuid,
     pub channel_id: u32,
 }
 
 struct Listener {
-    id: u32,
+    id: uuid::Uuid,
     path: String,
     state: Arc<Mutex<bool>>,
     stream: Option<UnixStream>,
@@ -21,9 +20,9 @@ struct Listener {
 }
 
 pub struct Router {
-    listeners: Arc<RwLock<HashMap<u32, Listener>>>,
+    listeners: Arc<RwLock<HashMap<uuid::Uuid, Listener>>>,
     routes: Arc<RwLock<HashMap<Address, Address>>>,
-    exit_buffer: Arc<Mutex<HashMap<u32, Vec<Message>>>>,
+    exit_buffer: Arc<Mutex<HashMap<uuid::Uuid, Vec<Message>>>>,
 }
 
 impl Router {
@@ -35,8 +34,8 @@ impl Router {
         }
     }
 
-    pub fn start(&mut self) {
-        println!("Router::start");
+    pub fn run(&mut self) {
+        println!("Router::run");
         // start a thread
         let listeners_clone = Arc::clone(&self.listeners);
         let routes_clone = Arc::clone(&self.routes);
@@ -200,7 +199,7 @@ impl Router {
                             match stream.write_all(&combined_buf) {
                                 Ok(_) => {}
                                 Err(e) => {
-                                    println!("Failed to write to socket; err = {:?}", e);
+                                    println!("Failed to write to socket; err = {:?} {:?}", e, id);
                                     break;
                                 }
                             }
@@ -225,7 +224,7 @@ impl Router {
         });
     }
 
-    pub fn add_listener(&mut self, id: u32) {
+    pub fn add_listener(&mut self, id: uuid::Uuid) {
         let path = format!("/tmp/sock-{}", id);
 
         println!("Adding listener: {}", path);
@@ -256,7 +255,7 @@ impl Router {
         println!("Finished adding listener");
     }
 
-    pub fn remove_listener(&mut self, id: u32) {
+    pub fn remove_listener(&mut self, id: uuid::Uuid) {
         let mut listeners_lock = self.listeners.write().unwrap();
         listeners_lock.remove(&id);
     }

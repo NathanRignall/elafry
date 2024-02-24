@@ -28,7 +28,7 @@ impl Manager {
         let mut stream = &self.stream;
         let mut length_buf = [0; 4];
 
-        // loop for a maximum of 10 times until no more data is available
+        // loop for a number of times to read messages
         for _ in 0..1000 {
             match stream.read_exact(&mut length_buf) {
                 Ok(_) => {

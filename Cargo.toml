@@ -4,16 +4,18 @@ members = [
     "apps/fcs_a",
     "apps/fcs_b",
     "apps/plant",
-    "crates/wrapper",
     "crates/agent",
+    "crates/elafry",
+    "crates/runner",
 ]
 
 [workspace.dependencies]
-wrapper = { path = "crates/wrapper" }
+elafry = { path = "crates/elafry" }
 
 serde = { version = "1.0", features = ["derive"] }
 bincode = "1.3.3"
 capnp = "0.14"
+libloading = "0.8.1"
 
 [workspace.dependencies.uuid]
 version = "1.7.0"
