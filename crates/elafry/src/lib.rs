@@ -1,4 +1,5 @@
 pub mod communications;
+pub mod messages;
 pub mod state;
 
 pub trait Component {

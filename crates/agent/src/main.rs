@@ -7,9 +7,9 @@ fn main() {
     std::thread::sleep(std::time::Duration::from_secs(1));
     agent.demo_task1();
 
-    // // wait 15 seconds
-    // std::thread::sleep(std::time::Duration::from_secs(10));
-    // agent.demo_task2();
+    // wait 10 seconds
+    std::thread::sleep(std::time::Duration::from_secs(10));
+    agent.demo_task2();
 
     // wait 200 seconds
     std::thread::sleep(std::time::Duration::from_secs(200));

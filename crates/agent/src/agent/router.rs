@@ -149,7 +149,7 @@ impl Router {
                                             }
                                         }
                                         None => {
-                                            // println!("No route found for: {:?}", Address { app_id: *id, channel_id: message.channel_id });
+                                            println!("No route found for: {:?}", Address { app_id: *id, channel_id: message.channel_id });
                                         }
                                     }
                                 }
@@ -235,9 +235,6 @@ impl Router {
 
         // create a new listener
         let listener = UnixListener::bind(&path).unwrap();
-
-        let mut listeners_lock = self.listeners.write().unwrap();
-
         let listener = Listener {
             id,
             path,
@@ -250,29 +247,32 @@ impl Router {
         listener.listener.set_nonblocking(true).unwrap();
 
         // insert the listener
-        listeners_lock.insert(id, listener);
+        {
+            let mut listeners_lock = self.listeners.write().unwrap();
+            listeners_lock.insert(id, listener);
+        }
 
         println!("Finished adding listener");
     }
 
     pub fn remove_listener(&mut self, id: uuid::Uuid) {
+        println!("Removing listener: {}", id);
         let mut listeners_lock = self.listeners.write().unwrap();
         listeners_lock.remove(&id);
+        println!("Finished removing listener");
     }
 
     pub fn add_route(&mut self, source: Address, destination: Address) {
         println!("Adding route: {:?} -> {:?}", source, destination);
         let mut route_lock = self.routes.write().unwrap();
         route_lock.insert(source, destination);
-
-        println!("finished adding route");
+        println!("Finished adding route");
     }
 
     pub fn remove_route(&mut self, source: Address) {
         println!("Removing route: {:?}", source);
         let mut route_lock = self.routes.write().unwrap();
         route_lock.remove(&source);
-
-        println!("finished removing route");
+        println!("Finished removing route");
     }
 }

@@ -7,6 +7,7 @@ pub struct Agent {
 
     process1: uuid::Uuid,
     process2: uuid::Uuid,
+    process3: uuid::Uuid,
 }
 
 impl Agent {
@@ -18,7 +19,7 @@ impl Agent {
         runner.run();   
         router.run();
 
-        Agent { router, runner, process1: uuid::Uuid::new_v4(), process2: uuid::Uuid::new_v4() }
+        Agent { router, runner, process1: uuid::Uuid::new_v4(), process2: uuid::Uuid::new_v4(), process3: uuid::Uuid::new_v4() }
     }
 
     pub fn demo_task1(&mut self) {
@@ -51,8 +52,8 @@ impl Agent {
         );
 
         // add processes
-        self.runner.add(self.process1, "target/release/libplant.dylib");
-        self.runner.add(self.process2, "target/release/libfcs_a.dylib");
+        self.runner.add(self.process1, "libplant.dylib");
+        self.runner.add(self.process2, "libfcs_a.dylib");
 
         // start processes
         self.runner.start(self.process1);
@@ -62,52 +63,51 @@ impl Agent {
     pub fn demo_task2(&mut self) {
         println!("demo_task2");
 
-        // // add required listeners
-        // self.router.add_listener(3);
+        // add required listeners
+        self.router.add_listener(self.process3);
 
-        // // add processes
-        // let process3 = self.runner.add("libfcs_b.dylib");
+        // add processes
+        self.runner.add(self.process3, "libfcs_b.dylib");
 
-        // // start processes
-        // self.runner.start(process3);
+        // stop old processes
+        self.runner.stop(self.process2);
 
-        // // remove old routes
-        // self.router.remove_route(router::Address {
-        //     app_id: 1,
-        //     channel_id: 1,
-        // });
-        // self.router.remove_route(router::Address {
-        //     app_id: 2,
-        //     channel_id: 2,
-        // });
+        // remove old routes
+        self.router.remove_route(router::Address {
+            app_id: self.process1,
+            channel_id: 1,
+        });
+        self.router.remove_route(router::Address {
+            app_id: self.process2,
+            channel_id: 2,
+        });
 
-        // // add new routes
-        // self.router.add_route(
-        //     router::Address {
-        //         app_id: 1,
-        //         channel_id: 1,
-        //     },
-        //     router::Address {
-        //         app_id: 3,
-        //         channel_id: 1,
-        //     },
-        // );
+        // add new routes
+        self.router.add_route(
+            router::Address {
+                app_id: self.process1,
+                channel_id: 1,
+            },
+            router::Address {
+                app_id: self.process3,
+                channel_id: 1,
+            },
+        );
+        self.router.add_route(
+            router::Address {
+                app_id: self.process3,
+                channel_id: 2,
+            },
+            router::Address {
+                app_id: self.process1,
+                channel_id: 2,
+            },
+        );
 
-        // self.router.add_route(
-        //     router::Address {
-        //         app_id: 3,
-        //         channel_id: 2,
-        //     },
-        //     router::Address {
-        //         app_id: 1,
-        //         channel_id: 2,
-        //     },
-        // );
+        // start processes
+        self.runner.start(self.process3);
 
-        // // stop old processes
-        // self.runner.stop(1);
-
-        // // remove old processes
-        // self.runner.remove(1);
+        // remove old processes
+        self.runner.remove(self.process2);
     }
 }
