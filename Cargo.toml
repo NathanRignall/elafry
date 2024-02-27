@@ -6,7 +6,6 @@ members = [
     "apps/plant",
     "crates/agent",
     "crates/elafry",
-    "crates/runner",
 ]
 
 [workspace.dependencies]
