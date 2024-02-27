@@ -112,22 +112,22 @@ impl elafry::Component for TestApp {
         self.plant_model.update(self.state.thrust);
 
         // at 1000, set setpoint to 20
-        if self.state.state_count == 5000 {
+        if self.state.state_count == 1000 {
             self.state.setpoint = 20.0;
         }
 
         // at 2000, set setpoint to 30
-        if self.state.state_count == 10000 {
+        if self.state.state_count == 2000 {
             self.state.setpoint = 10.0;
         }
 
         // at 3000, set setpoint to 40
-        if self.state.state_count == 15000 {
+        if self.state.state_count == 3000 {
             self.state.setpoint = 30.0;
         }
 
-        // at 4000, set setpoint to 10
-        if self.state.state_count == 20000 {
+        // at 5000, set setpoint to 10
+        if self.state.state_count == 5000 {
             self.state.setpoint = 10.0;
         }
 
@@ -167,7 +167,7 @@ impl elafry::Component for TestApp {
             ))
             .unwrap();
 
-        // kill after 1000 iterations
+        // kill after 6000 iterations
         if self.state.state_count == 6000 {
             self.writer.flush().unwrap();
             println!("Done!");
