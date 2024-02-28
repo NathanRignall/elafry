@@ -12,3 +12,4 @@ bincode = { workspace = true }
 uuid = { workspace = true }
 
 libloading = { workspace = true }
+command-fds = { workspace = true }

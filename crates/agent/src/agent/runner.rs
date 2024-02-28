@@ -1,40 +1,71 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::os::fd::{FromRawFd, IntoRawFd};
+use std::os::fd::{FromRawFd, IntoRawFd, OwnedFd};
 use std::os::unix::net::UnixStream;
 use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::thread::spawn;
+use command_fds::{CommandFdExt, FdMapping};
 
-struct Component {
+use elafry::communications::Message;
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+pub struct Address {
+    pub app_id: uuid::Uuid,
+    pub channel_id: u32,
+}
+
+pub struct Component {
     id: uuid::Uuid,
     run: bool,
     control_socket: UnixStream,
+    data_socket: UnixStream,
     child: std::process::Child,
 }
 
 pub struct Runner {
     components: Arc<Mutex<HashMap<uuid::Uuid, Component>>>,
+    routes: Arc<RwLock<HashMap<Address, Address>>>,
 }
 
 impl Runner {
     pub fn new() -> Runner {
         Runner {
             components: Arc::new(Mutex::new(HashMap::new())),
+            routes: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
     pub fn add(&mut self, id: uuid::Uuid, path: &str) {
         println!("Adding component {}", path);
 
-        // create a pair of sockets
+        // create control and data sockets
         let (mut control_socket, child_control_socket) = UnixStream::pair().unwrap();
+        let (data_socket, child_data_socket) = UnixStream::pair().unwrap();
+        data_socket.set_nonblocking(true).unwrap();
 
-        // spawn the component
-        let child = Command::new("target/release/runner")
-            .stdin(unsafe { Stdio::from_raw_fd(child_control_socket.into_raw_fd()) })              
-            .spawn()
-            .expect("Failed to start component");
+        // create fds for the child process
+        let child_control_socket = child_control_socket.into_raw_fd();
+        let child_data_socket = child_data_socket.into_raw_fd();
+
+        // convert to OwnedFd
+        let child_control_socket: OwnedFd = unsafe { OwnedFd::from_raw_fd(child_control_socket) };
+        let child_data_socket: OwnedFd = unsafe { OwnedFd::from_raw_fd(child_data_socket) };
+
+        // spawn the child process
+        let mut command = Command::new("target/release/runner");
+        command.fd_mappings(vec![
+            FdMapping{
+                child_fd: 0,
+                parent_fd: child_control_socket,
+            },
+            FdMapping{
+                child_fd: 1,
+                parent_fd: child_data_socket,
+            },
+        ]).unwrap();
+        // redirect the child's stderr to the parent's stderr
+        let child = command.stdout(Stdio::inherit()).stderr(Stdio::inherit()).spawn().unwrap();
 
         // wait for the child to start
         let mut buffer = [0; 1];
@@ -47,12 +78,6 @@ impl Runner {
         control_socket.read_exact(&mut buffer).unwrap();
         if buffer[0] != b'k' { panic!("Failed to start component");}
 
-        // write the socket path and wait for the child to acknowledge
-        let socket_path = format!("/tmp/sock-{}", id);
-        control_socket.write_all(socket_path.as_bytes()).unwrap();
-        control_socket.read_exact(&mut buffer).unwrap();
-        if buffer[0] != b'k' { panic!("Failed to start component");}
-
         // wait for the component to be ready
         control_socket.read_exact(&mut buffer).unwrap();
         if buffer[0] != b'k' { panic!("Failed to start component");}
@@ -61,9 +86,12 @@ impl Runner {
         let component = Component {
             id,
             run: false,
-            control_socket: control_socket,
+            control_socket,
+            data_socket,
             child,
         };
+
+        println!("Created component {}", id);
 
         // update the components map
         {
@@ -126,26 +154,50 @@ impl Runner {
         println!("Removed component {}", id);
     }
 
+    pub fn add_route(&mut self, source: Address, destination: Address) {
+        println!("Adding route: {:?} -> {:?}", source, destination);
+        let mut route_lock = self.routes.write().unwrap();
+        route_lock.insert(source, destination);
+        println!("Finished adding route");
+    }
+
+    pub fn remove_route(&mut self, source: Address) {
+        println!("Removing route: {:?}", source);
+        let mut route_lock = self.routes.write().unwrap();
+        route_lock.remove(&source);
+        println!("Finished removing route");
+    }
+
     pub fn run(&mut self) {
         let components = self.components.clone();
+        let routes = self.routes.clone();
 
         spawn(move || {
             let mut last_time;
-            let period = std::time::Duration::from_micros(1_000_000 / 200 as u64);
+            let period = std::time::Duration::from_micros(1_000_000 / 1 as u64);
 
             loop {
                 last_time = std::time::Instant::now();
 
                 {
+                    println!("got lock 1 ");
                     let mut components = components.lock().unwrap();
                     for (_, component) in components.iter_mut() {
                         if component.run {
+                            println!("running component {}", component.id);
                             component.control_socket.write_all(&[b'r']).unwrap();
                             let mut buffer = [0; 1];
                             component.control_socket.read_exact(&mut buffer).unwrap();
                             if buffer[0] != b'k' { panic!("Failed to run component");}
+                            println!("buffer: {:?}", buffer);
                         }
                     }
+                    println!("released lock 1");
+                }
+                {
+                    println!("got lock 2");
+                    route(components.clone(), routes.clone());
+                    println!("released lock 2");
                 }
 
                 let now = std::time::Instant::now();
@@ -159,4 +211,133 @@ impl Runner {
             }
         });
     }
+}
+
+fn route(components: Arc<Mutex<HashMap<uuid::Uuid, Component>>>, routes: Arc<RwLock<HashMap<Address, Address>>>) {
+    println!("Router::run");
+
+    let components_clone = Arc::clone(&components);
+    let routes_clone = Arc::clone(&routes);
+
+    let mut components_lock = components_clone.lock().unwrap();
+    let mut exit_buffer: HashMap<uuid::Uuid, Vec<Message>> = HashMap::new();
+
+    println!("Router::run loop");
+
+    // check for data
+    for (id, listener) in components_lock.iter_mut() {
+        let mut length_buf = [0; 4];
+
+        // loop for a maximum of 10 times until no more data is available
+        for _ in 0..1000 {
+            match listener.data_socket.read_exact(&mut length_buf) {
+                Ok(_) => {
+                    // get length of message
+                    let length = u32::from_be_bytes(length_buf);
+
+                    println!("length: {}", length);
+
+                    // don't read if length is 0
+                    if length == 0 {
+                        continue;
+                    }
+
+                    // create buffer with length
+                    let message_buf = {
+                        let mut buf = vec![0; length as usize];
+                        match listener.data_socket.read_exact(&mut buf) {
+                            Ok(_) => buf,
+                            Err(e) => {
+                                println!("Failed to read from socket; err = {:?}", e);
+                                continue;
+                            }
+                        }
+                    };
+
+                    // deserialize message
+                    let message: Message = match bincode::deserialize(&message_buf)
+                    {
+                        Ok(message) => message,
+                        Err(e) => {
+                            println!(
+                                "Failed to deserialize message; err = {:?}",
+                                e
+                            );
+                            continue;
+                        }
+                    };
+
+                    // look for a route
+                    let routes_lock = routes_clone.read().unwrap();
+
+                    let destination: Option<Address>;
+                    {
+                        destination = routes_lock
+                            .get(&Address {
+                                app_id: *id,
+                                channel_id: message.channel_id,
+                            })
+                            .cloned();
+                    }
+
+                    match destination {
+                        Some(destination) => {
+                            // insert the message into the exit buffer
+                            match exit_buffer.get_mut(&destination.app_id) {
+                                Some(buffer) => {
+                                    buffer.push(message);
+                                }
+                                None => {
+                                    exit_buffer
+                                        .insert(destination.app_id, vec![message]);
+                                }
+                            }
+                        }
+                        None => {
+                            println!("No route found for: {:?}", Address { app_id: *id, channel_id: message.channel_id });
+                        }
+                    }
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    break;
+                }
+                Err(e) => {
+                    println!("Failed to read from socket; err = {:?}", e);
+                    break;
+                }
+            }
+        }
+    }
+
+    // check for data to send to clear the exit buffer
+    for (id, listener) in components_lock.iter_mut() {
+        let messages = match exit_buffer.get_mut(&id) {
+            Some(messages) => messages,
+            None => {
+                continue;
+            }
+        };
+
+        for message in messages.iter() {
+            let message_buf = bincode::serialize(&message).unwrap();
+
+            let length = message_buf.len() as u32;
+
+            let length_buf = length.to_be_bytes();
+
+            let combined_buf = [length_buf.to_vec(), message_buf].concat();
+
+            match listener.data_socket.write_all(&combined_buf) {
+                Ok(_) => {}
+                Err(e) => {
+                    println!("Failed to write to socket; err = {:?} {:?}", e, id);
+                    break;
+                }
+            }
+        }
+
+        exit_buffer.remove(id);
+    }
+    
+    println!("Router::run end");
 }

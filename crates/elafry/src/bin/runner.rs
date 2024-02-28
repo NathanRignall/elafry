@@ -3,15 +3,18 @@ use libloading::{Library, Symbol};
 
 fn main() {
     // establish socket with parent
-    let fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(0) };
-    let mut child_sock = unsafe { UnixStream::from_raw_fd(fd) };
+    let child_control_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(0) };
+    let child_data_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(1) };
+    let mut child_control_socket = unsafe { UnixStream::from_raw_fd(child_control_socket_fd) };
+    let child_data_socket = unsafe { UnixStream::from_raw_fd(child_data_socket_fd) };
+    child_data_socket.set_nonblocking(true).unwrap();
 
     // send a message to the parent
-    child_sock.write_all(&[b'k']).expect("Failed to write to socket");
+    child_control_socket.write_all(&[b'k']).expect("Failed to write to socket");
 
     // get path to library using socket
     let mut buf = [0; 1024];
-    let n = child_sock.read(&mut buf).expect("Failed to read from socket");
+    let n = child_control_socket.read(&mut buf).expect("Failed to read from socket");
     let path = std::str::from_utf8(&buf[..n]).expect("Failed to convert to string");
 
     // load the library
@@ -24,18 +27,11 @@ fn main() {
     };
 
     // acknowledge library load
-    child_sock.write_all(&[b'k']).expect("Failed to write to socket");
-
-    // get path of socket using socket
-    let n = child_sock.read(&mut buf).expect("Failed to read from socket");
-    let socket_path: &str = std::str::from_utf8(&buf[..n]).expect("Failed to convert to string");
-
-    // acknowledge socket path
-    child_sock.write_all(&[b'k']).expect("Failed to write to socket");
+    child_control_socket.write_all(&[b'k']).expect("Failed to write to socket");
 
     // setup services
     let mut services = elafry::Services {
-        communications: elafry::communications::Manager::new(socket_path),
+        communications: elafry::communications::Manager::new(child_data_socket),
     };
 
     // initialize the component
@@ -43,15 +39,17 @@ fn main() {
     println!("Component initialized");
 
     // acknowledge component init
-    child_sock.write_all(&[b'k']).expect("Failed to write to socket");
+    child_control_socket.write_all(&[b'k']).expect("Failed to write to socket");
 
     #[cfg(feature = "instrument")]
     let mut times = Vec::new();
 
+    println!("Entering loop");
+
     // do work
     loop {
         let mut buf = [0; 1];
-        child_sock.read_exact(&mut buf).expect("Failed to read from socket");
+        child_control_socket.read_exact(&mut buf).expect("Failed to read from socket");
 
         #[cfg(feature = "instrument")]
         {
@@ -59,12 +57,14 @@ fn main() {
             times.push(start);
         }
 
+        println!("Received command: {:?}", buf[0] as char);
+
         match buf[0] {
             b'q' => break,
             b'r' => {
                 services.communications.receive();
                 component.run(&mut services);
-                child_sock.write_all(&[b'k']).expect("Failed to write to socket");
+                child_control_socket.write_all(&[b'k']).expect("Failed to write to socket");
             }
             _ => (),
         }

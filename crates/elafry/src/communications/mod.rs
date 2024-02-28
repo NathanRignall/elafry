@@ -17,10 +17,7 @@ pub struct Manager {
 }
 
 impl Manager {
-    pub fn new(path: &str) -> Manager {
-        let stream = UnixStream::connect(path).unwrap();
-        stream.set_nonblocking(true).unwrap();
-
+    pub fn new(stream: UnixStream) -> Manager {
         Manager { stream, messages: HashMap::new() }
     }
 
