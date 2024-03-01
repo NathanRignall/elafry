@@ -44,8 +44,8 @@ impl Agent {
         );
 
         // add processes
-        self.runner.add(self.process1, "libplant.dylib");
-        self.runner.add(self.process2, "libfcs_a.dylib");
+        self.runner.add(self.process1, "plant");
+        self.runner.add(self.process2, "fcs_a");
 
         // start processes
         self.runner.start(self.process1);
@@ -56,7 +56,7 @@ impl Agent {
         println!("demo_task2");
 
         // add processes
-        self.runner.add(self.process3, "libfcs_b.dylib");
+        self.runner.add(self.process3, "fcs_b");
 
         // stop old processes
         self.runner.stop(self.process2);

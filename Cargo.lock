@@ -70,7 +70,6 @@ name = "elafry"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "libloading",
  "serde",
 ]
 

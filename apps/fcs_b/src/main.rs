@@ -1,3 +1,4 @@
+use elafry::Component;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -72,6 +73,19 @@ struct TestApp {
 }
 
 impl elafry::Component for TestApp {
+    fn new() -> TestApp {
+        TestApp {
+            send_message_count: 0,
+            receive_message_count: 0,
+            state: State {
+                position: 0.0,
+                thrust: 0.0,
+                org_timestamp: 0,
+            },
+            pid_controller: PIDController::new(1.0, 0.005, 0.5, 0.0),
+        }
+    }
+
     fn init(&mut self, _services: &mut elafry::Services) {
         self.receive_message_count = 0;
         self.send_message_count = 0;
@@ -135,20 +149,10 @@ impl elafry::Component for TestApp {
     }
 
     fn hello(&self) {
-        println!("Hello, World! (FCS A)");
+        println!("Hello, World! (FCS B)");
     }
 }
 
-#[no_mangle]
-pub extern "Rust" fn create_component() -> Box<dyn elafry::Component> {
-    Box::new(TestApp {
-        send_message_count: 0,
-        receive_message_count: 0,
-        state: State {
-            position: 0.0,
-            thrust: 0.0,
-            org_timestamp: 0,
-        },
-        pid_controller: PIDController::new(1.0, 0.005, 0.5, 0.0),
-    })
+fn main() {
+    elafry::run(TestApp::new());
 }

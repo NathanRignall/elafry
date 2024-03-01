@@ -1,3 +1,4 @@
+use elafry::Component;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -68,10 +69,27 @@ struct TestApp {
 }
 
 impl elafry::Component for TestApp {
+    fn new() -> Self {
+        TestApp {
+            send_message_count: 0,
+            receive_message_count: 0,
+            state: State {
+                thrust: 0.0,
+                setpoint: 0.0,
+                state_count: 0,
+            },
+            plant_model: PlantModel::new(),
+            writer: csv::Writer::from_path("plant.csv").unwrap(),
+            loop_count: 0,
+            last_timestamp: 0,
+        }
+    }
+
     fn init(&mut self, _services: &mut elafry::Services) {
+        eprintln!("Initializing!");
         self.send_message_count = 0;
         self.receive_message_count = 0;
-        println!("Starting up!");
+        eprintln!("Starting up!");
     }
 
     fn run(&mut self, services: &mut elafry::Services) {
@@ -111,15 +129,15 @@ impl elafry::Component for TestApp {
         self.state.state_count += 1;
         self.plant_model.update(self.state.thrust);
 
-        // at 1000, set setpoint to 20
-        if self.state.state_count == 1000 {
+        // at 500, set setpoint to 20
+        if self.state.state_count == 500 {
             self.state.setpoint = 20.0;
         }
 
-        // at 2000, set setpoint to 30
-        if self.state.state_count == 2000 {
-            self.state.setpoint = 10.0;
-        }
+        // // at 2000, set setpoint to 30
+        // if self.state.state_count == 2000 {
+        //     self.state.setpoint = 10.0;
+        // }
 
         // at 3000, set setpoint to 40
         if self.state.state_count == 3000 {
@@ -176,23 +194,10 @@ impl elafry::Component for TestApp {
     }
 
     fn hello(&self) {
-        println!("Hello, World! (Plant)");
+        eprintln!("Hello, World! (Plant)");
     }
 }
 
-#[no_mangle]
-pub extern "Rust" fn create_component() -> Box<dyn elafry::Component> {
-    Box::new(TestApp {
-        send_message_count: 0,
-        receive_message_count: 0,
-        state: State {
-            thrust: 0.0,
-            setpoint: 0.0,
-            state_count: 0,
-        },
-        plant_model: PlantModel::new(),
-        writer: csv::Writer::from_path("plant.csv").unwrap(),
-        loop_count: 0,
-        last_timestamp: 0,
-    })
+fn main() {
+    elafry::run(TestApp::new());
 }

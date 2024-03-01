@@ -1,3 +1,4 @@
+use elafry::Component;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -16,17 +17,19 @@ struct PIDController {
     kp: f64, // Proportional gain
     ki: f64, // Integral gain
     kd: f64, // Derivative gain
+    kn: f64, // Filter gain
     setpoint: f64,
     integral: f64,
     prev_error: f64,
 }
 
 impl PIDController {
-    fn new(kp: f64, ki: f64, kd: f64, setpoint: f64) -> PIDController {
+    fn new(kp: f64, ki: f64, kd: f64, kn: f64, setpoint: f64) -> PIDController {
         PIDController {
             kp,
             ki,
             kd,
+            kn,
             setpoint,
             integral: 0.0,
             prev_error: 0.0,
@@ -40,19 +43,14 @@ impl PIDController {
     fn compute(&mut self, measured_value: f64) -> f64 {
         let error = self.setpoint - measured_value;
 
-        // Proportional term
-        let p_term = self.kp * error;
-
-        // Integral term
         self.integral += error;
-        let i_term = self.ki * self.integral;
-
-        // Derivative term
-        let d_term = self.kd * (error - self.prev_error);
+        let derivative = error - self.prev_error;
         self.prev_error = error;
 
-        // Calculate PID output
-        let pid_output = p_term + i_term + d_term;
+        // use kn to filter the derivative term
+        let filtered_derivative = self.kn * derivative;
+
+        let pid_output = self.kp * error + self.ki * self.integral + self.kd * filtered_derivative;
 
         pid_output
     }
@@ -72,6 +70,19 @@ struct TestApp {
 }
 
 impl elafry::Component for TestApp {
+    fn new() -> TestApp {
+        TestApp {
+            send_message_count: 0,
+            receive_message_count: 0,
+            state: State {
+                position: 0.0,
+                thrust: 0.0,
+                org_timestamp: 0,
+            },
+            pid_controller: PIDController::new(0.4472, 0.02952, 1.646, 5.0, 0.0)
+        }
+    }
+
     fn init(&mut self, _services: &mut elafry::Services) {
         self.receive_message_count = 0;
         self.send_message_count = 0;
@@ -135,20 +146,10 @@ impl elafry::Component for TestApp {
     }
 
     fn hello(&self) {
-        println!("Hello, World! (FCS B)");
+        println!("Hello, World! (FCS A)");
     }
 }
 
-#[no_mangle]
-pub extern "Rust" fn create_component() -> Box<dyn elafry::Component> {
-    Box::new(TestApp {
-        send_message_count: 0,
-        receive_message_count: 0,
-        state: State {
-            position: 0.0,
-            thrust: 0.0,
-            org_timestamp: 0,
-        },
-        pid_controller: PIDController::new(1.0, 0.005, 0.5, 0.0),
-    })
+fn main() {
+    elafry::run(TestApp::new());
 }
