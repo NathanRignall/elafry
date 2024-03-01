@@ -8,6 +8,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "command-fds",
+ "csv",
  "elafry",
  "libloading",
  "uuid",
@@ -70,6 +71,7 @@ name = "elafry"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "csv",
  "serde",
 ]
 

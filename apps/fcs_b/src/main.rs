@@ -65,16 +65,16 @@ struct State {
     org_timestamp: u64,
 }
 
-struct TestApp {
+struct FcsB {
     send_message_count: u32,
     receive_message_count: u32,
     state: State,
     pid_controller: PIDController,
 }
 
-impl elafry::Component for TestApp {
-    fn new() -> TestApp {
-        TestApp {
+impl elafry::Component for FcsB {
+    fn new() -> FcsB {
+        FcsB {
             send_message_count: 0,
             receive_message_count: 0,
             state: State {
@@ -154,5 +154,5 @@ impl elafry::Component for TestApp {
 }
 
 fn main() {
-    elafry::run(TestApp::new());
+    elafry::run(FcsB::new());
 }

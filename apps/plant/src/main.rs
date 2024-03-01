@@ -58,7 +58,7 @@ struct State {
     state_count: u32,
 }
 
-struct TestApp {
+struct Plant {
     send_message_count: u32,
     receive_message_count: u32,
     state: State,
@@ -68,9 +68,9 @@ struct TestApp {
     last_timestamp: u64,
 }
 
-impl elafry::Component for TestApp {
+impl elafry::Component for Plant {
     fn new() -> Self {
-        TestApp {
+        Plant {
             send_message_count: 0,
             receive_message_count: 0,
             state: State {
@@ -199,5 +199,5 @@ impl elafry::Component for TestApp {
 }
 
 fn main() {
-    elafry::run(TestApp::new());
+    elafry::run(Plant::new());
 }
