@@ -13,5 +13,6 @@ uuid = { workspace = true }
 
 libloading = { workspace = true }
 command-fds = { workspace = true }
+libc = { workspace = true }
 
 csv = "1.1"

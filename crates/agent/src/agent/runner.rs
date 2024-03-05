@@ -72,6 +72,31 @@ impl Runner {
             .spawn()
             .unwrap();
 
+        // use libc to set the process core affinity to core 2
+        unsafe {
+            let mut cpuset = libc::cpu_set_t::default();
+            libc::CPU_SET(2, &mut cpuset);
+            let ret = libc::sched_setaffinity(
+                child.id() as libc::pid_t,
+                std::mem::size_of_val(&cpuset),
+                &cpuset as *const libc::cpu_set_t,
+            );
+        }
+
+        // use libc to set the scheduler for the child process
+        unsafe {
+            let ret = libc::sched_setscheduler(
+                child.id() as libc::pid_t,
+                libc::SCHED_FIFO,
+                &libc::sched_param {
+                    sched_priority: 99,
+                },
+            );
+            if ret != 0 {
+                println!("Failed to set scheduler");
+            }
+        }
+
         // wait for the component to be ready
         let mut buffer = [0; 1];
         control_socket.read_exact(&mut buffer).unwrap();
@@ -177,7 +202,7 @@ impl Runner {
         let components = self.components.clone();
         let routes = self.routes.clone();
 
-        spawn(move || {
+        let child = spawn(move || {
             let mut last_time;
             let period = std::time::Duration::from_micros(1_000_000 / 200 as u64);
 
@@ -227,6 +252,31 @@ impl Runner {
                 }
             }
         });
+
+        // use libc to set the process core affinity to core 2
+        unsafe {
+            let mut cpuset = libc::cpu_set_t::default();
+            libc::CPU_SET(2, &mut cpuset);
+            let ret = libc::sched_setaffinity(
+                child.thread().id() as libc::pid_t,
+                std::mem::size_of_val(&cpuset),
+                &cpuset as *const libc::cpu_set_t,
+            );
+        }
+
+        // use libc to set the scheduler for the child process
+        unsafe {
+            let ret = libc::sched_setscheduler(
+                child.thread().id() as libc::pid_t,
+                libc::SCHED_FIFO,
+                &libc::sched_param {
+                    sched_priority: 99,
+                },
+            );
+            if ret != 0 {
+                println!("Failed to set scheduler");
+            }
+        }
     }
 
     pub fn write(&mut self) {
