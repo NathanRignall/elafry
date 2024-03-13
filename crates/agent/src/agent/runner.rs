@@ -1,12 +1,11 @@
 use command_fds::{CommandFdExt, FdMapping};
-use uuid::timestamp;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::os::fd::{FromRawFd, IntoRawFd, OwnedFd};
 use std::os::unix::net::UnixStream;
+use std::os::unix::thread::JoinHandleExt;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, RwLock};
-use std::thread::spawn;
 
 use elafry::communications::Message;
 
@@ -22,7 +21,7 @@ pub struct Component {
     control_count: u8,
     data_socket: UnixStream,
     child: std::process::Child,
-    times: Vec<(u64, u8)>,
+    times: Vec<u64>,
 }
 
 pub struct Runner {
@@ -72,18 +71,21 @@ impl Runner {
             .spawn()
             .unwrap();
 
-        // use libc to set the process core affinity to core 2
+        // use libc to set the process core affinity to core 3
+        let mut cpu_set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
         unsafe {
-            let mut cpuset = libc::cpu_set_t::default();
-            libc::CPU_SET(2, &mut cpuset);
+            libc::CPU_SET(3, &mut cpu_set);
             let ret = libc::sched_setaffinity(
-                child.id() as libc::pid_t,
-                std::mem::size_of_val(&cpuset),
-                &cpuset as *const libc::cpu_set_t,
+                child.id() as libc::pid_t, 
+                std::mem::size_of_val(&cpu_set), 
+                &cpu_set
             );
+            if ret != 0 {
+                panic!("Failed to set affinity");
+            }
         }
-
-        // use libc to set the scheduler for the child process
+    
+        // use libc to set the process sechdeuler to SCHEDULER FFIO
         unsafe {
             let ret = libc::sched_setscheduler(
                 child.id() as libc::pid_t,
@@ -164,6 +166,12 @@ impl Runner {
         let mut components = self.components.lock().unwrap();
         match components.get_mut(&id) {
             Some(component) => {
+                // wake up component
+                component.control_socket.write_all(&[b'w', component.control_count]).unwrap();
+                component.control_count += 1;
+                let mut buffer = [0; 1];
+                component.control_socket.read_exact(&mut buffer).unwrap();
+
                 // send stop signal
                 component.control_socket.write_all(&[b'q', component.control_count]).unwrap();
 
@@ -202,7 +210,7 @@ impl Runner {
         let components = self.components.clone();
         let routes = self.routes.clone();
 
-        let child = spawn(move || {
+        let thread = std::thread::spawn(move || {
             let mut last_time;
             let period = std::time::Duration::from_micros(1_000_000 / 200 as u64);
 
@@ -216,16 +224,22 @@ impl Runner {
                     let mut components = components.lock().unwrap();
                     for (_, component) in components.iter_mut() {
                         if component.run {
+                            // wake up component
+                            component.control_socket.write_all(&[b'w', component.control_count]).unwrap();
+                            component.control_count += 1;
+                            let mut buffer = [0; 1];
+                            component.control_socket.read_exact(&mut buffer).unwrap();
+
                             let timestamp = std::time::SystemTime::now()
                                 .duration_since(std::time::UNIX_EPOCH)
                                 .unwrap()
                                 .as_micros()
                                 as u64;
-                            component.times.push((timestamp, component.control_count));
+                            component.times.push(timestamp);
 
+                            // execute component
                             component.control_socket.write_all(&[b'r', component.control_count]).unwrap();
                             component.control_count += 1;
-
                             let mut buffer = [0; 1];
                             component.control_socket.read_exact(&mut buffer).unwrap();
 
@@ -254,20 +268,23 @@ impl Runner {
         });
 
         // use libc to set the process core affinity to core 2
+        let mut cpu_set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
         unsafe {
-            let mut cpuset = libc::cpu_set_t::default();
-            libc::CPU_SET(2, &mut cpuset);
+            libc::CPU_SET(2, &mut cpu_set);
             let ret = libc::sched_setaffinity(
-                child.thread().id() as libc::pid_t,
-                std::mem::size_of_val(&cpuset),
-                &cpuset as *const libc::cpu_set_t,
+                thread.as_pthread_t() as libc::pid_t,
+                std::mem::size_of_val(&cpu_set),
+                &cpu_set
             );
+            if ret != 0 {
+                println!("Failed to set affinity");
+            }
         }
-
-        // use libc to set the scheduler for the child process
+    
+        // use libc to set the process sechdeuler to SCHEDULER FFIO
         unsafe {
             let ret = libc::sched_setscheduler(
-                child.thread().id() as libc::pid_t,
+                thread.as_pthread_t() as libc::pid_t,
                 libc::SCHED_FIFO,
                 &libc::sched_param {
                     sched_priority: 99,
@@ -286,9 +303,8 @@ impl Runner {
 
             let mut writer = csv::Writer::from_path(instrument_file).expect("Failed to open file");
             for (i, time) in component.times.iter().enumerate() {
-                let (time, count) = time;
                 writer
-                    .serialize((i, time, count))
+                    .serialize((i, time))
                     .expect("Failed to write to file");
             }
         }

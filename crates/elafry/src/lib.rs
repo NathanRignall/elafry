@@ -26,7 +26,8 @@ pub fn run<T: Component + 'static>(mut component: T) {
     let child_control_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(10) };
     let child_data_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(11) };
     let mut child_control_socket = unsafe { UnixStream::from_raw_fd(child_control_socket_fd) };
-    let mut child_control_count: u8 = 0 ;
+    child_control_socket.set_nonblocking(false).unwrap();
+    let mut child_control_count: u8 = 0;
     let child_data_socket = unsafe { UnixStream::from_raw_fd(child_data_socket_fd) };
     child_data_socket.set_nonblocking(true).unwrap();
 
@@ -51,13 +52,31 @@ pub fn run<T: Component + 'static>(mut component: T) {
 
     // do work
     loop {
+        // set to non-blocking mode
+        child_control_socket.set_nonblocking(false).unwrap();
+
         let mut buf = [0; 2];
         child_control_socket
             .read_exact(&mut buf)
             .expect("Failed to read from socket");
+        child_control_socket
+            .write_all(&[b'k'])
+            .expect("Failed to write to socket");
+
+        child_control_count += 1;
+
+        // set to blocking mode
+        child_control_socket.set_nonblocking(true).unwrap();
+        loop {
+            match child_control_socket.read_exact(&mut buf) {
+                Ok(_) => break,
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => (),
+                Err(e) => panic!("Failed to read from socket: {}", e),
+            }
+        }
 
         if buf[1] != child_control_count {
-            panic!("Control count mismatch");
+            println!("Control count mismatch ({} != {})", buf[1], child_control_count);
         }
 
         #[cfg(feature = "instrument")]
