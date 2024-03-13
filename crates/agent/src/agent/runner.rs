@@ -267,12 +267,15 @@ impl Runner {
             }
         });
 
+        let pid = unsafe { libc::getpid() };
+        println!("Runner thread pid: {}", pid);
+
         // use libc to set the process core affinity to core 2
         let mut cpu_set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
         unsafe {
             libc::CPU_SET(2, &mut cpu_set);
             let ret = libc::sched_setaffinity(
-                thread.as_pthread_t() as libc::pid_t,
+                pid as libc::pid_t,
                 std::mem::size_of_val(&cpu_set),
                 &cpu_set
             );
@@ -284,7 +287,7 @@ impl Runner {
         // use libc to set the process sechdeuler to SCHEDULER FFIO
         unsafe {
             let ret = libc::sched_setscheduler(
-                thread.as_pthread_t() as libc::pid_t,
+                pid as libc::pid_t,
                 libc::SCHED_FIFO,
                 &libc::sched_param {
                     sched_priority: 99,
