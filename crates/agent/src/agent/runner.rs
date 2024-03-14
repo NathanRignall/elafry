@@ -215,8 +215,8 @@ impl Runner {
             let mut cpu_set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
             unsafe {
                 libc::CPU_SET(2, &mut cpu_set);
-                let ret = libc::sched_setaffinity(
-                    pid as libc::pid_t,
+                let ret = libc::pthread_setaffinity_np(
+                    libc::pthread_self(),
                     std::mem::size_of_val(&cpu_set),
                     &cpu_set
                 );
@@ -227,8 +227,8 @@ impl Runner {
         
             // use libc to set the process sechdeuler to SCHEDULER FFIO
             unsafe {
-                let ret = libc::sched_setscheduler(
-                    pid as libc::pid_t,
+                let ret = libc::pthread_setschedparam(
+                    libc::pthread_self(),
                     libc::SCHED_FIFO,
                     &libc::sched_param {
                         sched_priority: 99,
