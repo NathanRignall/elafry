@@ -207,7 +207,38 @@ impl Runner {
         let components = self.components.clone();
         let routes = self.routes.clone();
 
-        let thread = std::thread::spawn(move || {
+        let _ = std::thread::spawn(move || {
+            let pid = unsafe { libc::getpid() };
+            println!("Runner thread pid: {}", pid);
+    
+            // use libc to set the process core affinity to core 2
+            let mut cpu_set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
+            unsafe {
+                libc::CPU_SET(2, &mut cpu_set);
+                let ret = libc::sched_setaffinity(
+                    pid as libc::pid_t,
+                    std::mem::size_of_val(&cpu_set),
+                    &cpu_set
+                );
+                if ret != 0 {
+                    println!("Failed to set affinity");
+                }
+            }
+        
+            // use libc to set the process sechdeuler to SCHEDULER FFIO
+            unsafe {
+                let ret = libc::sched_setscheduler(
+                    pid as libc::pid_t,
+                    libc::SCHED_FIFO,
+                    &libc::sched_param {
+                        sched_priority: 99,
+                    },
+                );
+                if ret != 0 {
+                    println!("Failed to set scheduler");
+                }
+            }
+
             let mut last_time;
             let period = std::time::Duration::from_micros(1_000_000 / 200 as u64);
 
@@ -267,37 +298,6 @@ impl Runner {
                 }
             }
         });
-
-        let pid = unsafe { libc::getpid() };
-        println!("Runner thread pid: {}", pid);
-
-        // use libc to set the process core affinity to core 2
-        let mut cpu_set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
-        unsafe {
-            libc::CPU_SET(2, &mut cpu_set);
-            let ret = libc::sched_setaffinity(
-                pid as libc::pid_t,
-                std::mem::size_of_val(&cpu_set),
-                &cpu_set
-            );
-            if ret != 0 {
-                println!("Failed to set affinity");
-            }
-        }
-    
-        // use libc to set the process sechdeuler to SCHEDULER FFIO
-        unsafe {
-            let ret = libc::sched_setscheduler(
-                pid as libc::pid_t,
-                libc::SCHED_FIFO,
-                &libc::sched_param {
-                    sched_priority: 99,
-                },
-            );
-            if ret != 0 {
-                println!("Failed to set scheduler");
-            }
-        }
     }
 
     pub fn write(&mut self) {
