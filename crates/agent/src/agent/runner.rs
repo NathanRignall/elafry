@@ -3,17 +3,10 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::os::fd::{FromRawFd, IntoRawFd, OwnedFd};
 use std::os::unix::net::UnixStream;
-use std::os::unix::thread::JoinHandleExt;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, RwLock};
 
 use elafry::communications::Message;
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
-pub struct Address {
-    pub app_id: uuid::Uuid,
-    pub channel_id: u32,
-}
 
 pub struct Component {
     run: bool,
@@ -26,7 +19,7 @@ pub struct Component {
 
 pub struct Runner {
     components: Arc<Mutex<HashMap<uuid::Uuid, Component>>>,
-    routes: Arc<RwLock<HashMap<Address, Address>>>,
+    routes: Arc<RwLock<HashMap<elafry::configuration::RouteEndpoint, elafry::configuration::RouteEndpoint>>>,
 }
 
 impl Runner {
@@ -37,7 +30,7 @@ impl Runner {
         }
     }
 
-    pub fn add(&mut self, id: uuid::Uuid, path: &str) {
+    pub fn add_component(&mut self, id: uuid::Uuid, path: &str) {
         println!("Adding component {}", path);
 
         // create control and data sockets
@@ -70,6 +63,10 @@ impl Runner {
             .stderr(Stdio::inherit())
             .spawn()
             .unwrap();
+
+        // stop socket from being closed when it goes out of scope
+        let _ = unsafe { UnixStream::from_raw_fd(child_control_socket_fd) };
+        let _ = unsafe { UnixStream::from_raw_fd(child_data_socket_fd) };
 
         // use libc to set the process core affinity to core 3
         let mut cpu_set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
@@ -127,7 +124,7 @@ impl Runner {
         println!("Added component {}", id);
     }
 
-    pub fn start(&mut self, id: uuid::Uuid) {
+    pub fn start_component(&mut self, id: uuid::Uuid) {
         println!("Starting component {}", id);
 
         // update the components map bool flag
@@ -143,7 +140,7 @@ impl Runner {
         }
     }
 
-    pub fn stop(&mut self, id: uuid::Uuid) {
+    pub fn stop_component(&mut self, id: uuid::Uuid) {
         println!("Stopping component {}", id);
 
         // update the components map bool flag
@@ -159,7 +156,7 @@ impl Runner {
         }
     }
 
-    pub fn remove(&mut self, id: uuid::Uuid) {
+    pub fn remove_component(&mut self, id: uuid::Uuid) {
         println!("Removing component {}", id);
 
         // kill the child process
@@ -192,14 +189,14 @@ impl Runner {
         println!("Removed component {}", id);
     }
 
-    pub fn add_route(&mut self, source: Address, destination: Address) {
+    pub fn add_route(&mut self, source: elafry::configuration::RouteEndpoint, destination: elafry::configuration::RouteEndpoint) {
         println!("Adding route: {:?} -> {:?}", source, destination);
         let mut route_lock = self.routes.write().unwrap();
         route_lock.insert(source, destination);
         println!("Finished adding route");
     }
 
-    pub fn remove_route(&mut self, source: Address) {
+    pub fn remove_route(&mut self, source: elafry::configuration::RouteEndpoint) {
         println!("Removing route: {:?}", source);
         let mut route_lock = self.routes.write().unwrap();
         route_lock.remove(&source);
@@ -225,10 +222,12 @@ impl Runner {
                     for (_, component) in components.iter_mut() {
                         if component.run {
                             // wake up component
+                            // println!("Waking up component");
                             component.control_socket.write_all(&[b'w', component.control_count]).unwrap();
                             component.control_count += 1;
                             let mut buffer = [0; 1];
                             component.control_socket.read_exact(&mut buffer).unwrap();
+                            // println!("Woke up component");
 
                             let timestamp = std::time::SystemTime::now()
                                 .duration_since(std::time::UNIX_EPOCH)
@@ -238,10 +237,12 @@ impl Runner {
                             component.times.push(timestamp);
 
                             // execute component
+                            // println!("Executing component");
                             component.control_socket.write_all(&[b'r', component.control_count]).unwrap();
                             component.control_count += 1;
                             let mut buffer = [0; 1];
                             component.control_socket.read_exact(&mut buffer).unwrap();
+                            // println!("Executed component");
 
                             if buffer[0] != b'k' {
                                 panic!("Failed to run component");
@@ -316,7 +317,7 @@ impl Runner {
 
 fn route(
     components: Arc<Mutex<HashMap<uuid::Uuid, Component>>>,
-    routes: Arc<RwLock<HashMap<Address, Address>>>,
+    routes: Arc<RwLock<HashMap<elafry::configuration::RouteEndpoint, elafry::configuration::RouteEndpoint>>>,
 ) {
     let components_clone = Arc::clone(&components);
     let routes_clone = Arc::clone(&routes);
@@ -364,10 +365,10 @@ fn route(
                     // look for a route
                     let routes_lock = routes_clone.read().unwrap();
 
-                    let destination: Option<Address>;
+                    let destination: Option<elafry::configuration::RouteEndpoint>;
                     {
                         destination = routes_lock
-                            .get(&Address {
+                            .get(&elafry::configuration::RouteEndpoint {
                                 app_id: *id,
                                 channel_id: message.channel_id,
                             })
@@ -389,7 +390,7 @@ fn route(
                         None => {
                             println!(
                                 "No route found for: {:?}",
-                                Address {
+                                elafry::configuration::RouteEndpoint {
                                     app_id: *id,
                                     channel_id: message.channel_id
                                 }
