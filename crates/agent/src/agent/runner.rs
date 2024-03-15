@@ -289,7 +289,7 @@ impl Runner {
                 };
 
                 // reset index if it's out of bounds
-                if index == frame_count {
+                if index >= frame_count {
                     index = 0;
                 }
 
