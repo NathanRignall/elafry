@@ -17,17 +17,19 @@ struct PIDController {
     kp: f64, // Proportional gain
     ki: f64, // Integral gain
     kd: f64, // Derivative gain
+    kn: f64, // Filter gain
     setpoint: f64,
     integral: f64,
     prev_error: f64,
 }
 
 impl PIDController {
-    fn new(kp: f64, ki: f64, kd: f64, setpoint: f64) -> PIDController {
+    fn new(kp: f64, ki: f64, kd: f64, kn: f64, setpoint: f64) -> PIDController {
         PIDController {
             kp,
             ki,
             kd,
+            kn,
             setpoint,
             integral: 0.0,
             prev_error: 0.0,
@@ -41,19 +43,14 @@ impl PIDController {
     fn compute(&mut self, measured_value: f64) -> f64 {
         let error = self.setpoint - measured_value;
 
-        // Proportional term
-        let p_term = self.kp * error;
-
-        // Integral term
         self.integral += error;
-        let i_term = self.ki * self.integral;
-
-        // Derivative term
-        let d_term = self.kd * (error - self.prev_error);
+        let derivative = error - self.prev_error;
         self.prev_error = error;
 
-        // Calculate PID output
-        let pid_output = p_term + i_term + d_term;
+        // use kn to filter the derivative term
+        let filtered_derivative = self.kn * derivative;
+
+        let pid_output = self.kp * error + self.ki * self.integral + self.kd * filtered_derivative;
 
         pid_output
     }
@@ -82,7 +79,7 @@ impl elafry::Component for FcsB {
                 thrust: 0.0,
                 org_timestamp: 0,
             },
-            pid_controller: PIDController::new(1.0, 0.005, 0.5, 0.0),
+            pid_controller: PIDController::new(2.5, 0.0001,50.0, 25.0, 0.0)
         }
     }
 
@@ -100,7 +97,7 @@ impl elafry::Component for FcsB {
 
         // do stuff with messages
         loop {
-            let message = services.communications.get_message(1);
+            let message = services.communication.get_message(1);
             match message {
                 Some(message) => {
                     self.receive_message_count += 1;
@@ -139,13 +136,13 @@ impl elafry::Component for FcsB {
             org_timestamp: self.state.org_timestamp,
         };
         let control_data_buf = bincode::serialize(&control_data).unwrap();
-        let message = elafry::communications::Message {
+        let message = elafry::types::communication::Message {
             channel_id: 2,
             data: control_data_buf,
             count: self.send_message_count,
             timestamp: timestamp,
         };
-        services.communications.send_message(message);
+        services.communication.send_message(message);
     }
 
     fn hello(&self) {

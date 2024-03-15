@@ -1,7 +1,5 @@
-pub mod communications;
-pub mod configuration;
-pub mod messages;
-pub mod state;
+pub mod services;
+pub mod types;
 
 pub trait Component {
     fn new() -> Self;
@@ -11,7 +9,8 @@ pub trait Component {
 }
 
 pub struct Services {
-    pub communications: communications::Manager,
+    pub communication: services::communication::Manager,
+    pub state: services::state::Manager,
 }
 
 use std::{
@@ -26,15 +25,27 @@ pub fn run<T: Component + 'static>(mut component: T) {
     // establish socket with parent
     let child_control_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(10) };
     let child_data_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(11) };
+    let child_state_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(12) };
+
+    // set up control socket
     let mut child_control_socket = unsafe { UnixStream::from_raw_fd(child_control_socket_fd) };
     child_control_socket.set_nonblocking(false).unwrap();
     let mut child_control_count: u8 = 0;
+
+    // set up data socket
     let child_data_socket = unsafe { UnixStream::from_raw_fd(child_data_socket_fd) };
     child_data_socket.set_nonblocking(true).unwrap();
+    let mut child_data_count: u8 = 0;
+
+    // set up state socket
+    let child_state_socket = unsafe { UnixStream::from_raw_fd(child_state_socket_fd) };
+    child_state_socket.set_nonblocking(true).unwrap();
+    let mut child_state_count: u8 = 0;
 
     // setup services
     let mut services = Services {
-        communications: communications::Manager::new(child_data_socket),
+        communication: services::communication::Manager::new(child_data_socket),
+        state: services::state::Manager::new(child_state_socket),
     };
 
     // initialize the component
@@ -77,7 +88,10 @@ pub fn run<T: Component + 'static>(mut component: T) {
         }
 
         if buf[1] != child_control_count {
-            println!("Control count mismatch ({} != {})", buf[1], child_control_count);
+            println!(
+                "Control count mismatch ({} != {})",
+                buf[1], child_control_count
+            );
         }
 
         #[cfg(feature = "instrument")]
@@ -94,7 +108,7 @@ pub fn run<T: Component + 'static>(mut component: T) {
         match buf[0] {
             b'q' => break,
             b'r' => {
-                services.communications.receive();
+                services.communication.receive();
                 component.run(&mut services);
                 child_control_socket
                     .write_all(&[b'k'])

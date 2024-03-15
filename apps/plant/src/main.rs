@@ -97,7 +97,7 @@ impl elafry::Component for Plant {
 
         // do stuff with messages
         loop {
-            let message = services.communications.get_message(2);
+            let message = services.communication.get_message(2);
             match message {
                 Some(message) => {
                     self.receive_message_count += 1;
@@ -129,25 +129,25 @@ impl elafry::Component for Plant {
         self.state.state_count += 1;
         self.plant_model.update(self.state.thrust);
 
-        // at 500, set setpoint to 20
-        if self.state.state_count == 500 {
-            self.state.setpoint = 20.0;
+        // at 200, set setpoint to 50
+        if self.state.state_count == 200 {
+            self.state.setpoint = 50.0;
         }
 
-        // // at 2000, set setpoint to 30
-        // if self.state.state_count == 2000 {
-        //     self.state.setpoint = 10.0;
+        // at 5000, set setpoint to 70
+        if self.state.state_count == 5000 {
+            self.state.setpoint = 70.0;
+        }
+
+        // // at 3000, set setpoint to 40
+        // if self.state.state_count == 8000 {
+        //     self.state.setpoint = 100.0;
         // }
 
-        // at 3000, set setpoint to 40
-        if self.state.state_count == 3000 {
-            self.state.setpoint = 30.0;
-        }
-
-        // at 5000, set setpoint to 10
-        if self.state.state_count == 5000 {
-            self.state.setpoint = 10.0;
-        }
+        // // at 5000, set setpoint to 10
+        // if self.state.state_count == 5000 {
+        //     self.state.setpoint = 10.0;
+        // }
 
         let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -162,13 +162,13 @@ impl elafry::Component for Plant {
 
         self.send_message_count += 1;
         let sensor_data_buf = bincode::serialize(&sensor_data).unwrap();
-        let message = elafry::communications::Message {
+        let message = elafry::types::communication::Message {
             channel_id: 1,
             data: sensor_data_buf,
             count: self.send_message_count,
             timestamp: timestamp,
         };
-        services.communications.send_message(message);
+        services.communication.send_message(message);
 
         // calculate difference in time between now and last timestamp
         let time_diff = timestamp - self.last_timestamp;
@@ -184,13 +184,6 @@ impl elafry::Component for Plant {
                 self.state.setpoint,
             ))
             .unwrap();
-
-        // kill after 6000 iterations
-        if self.state.state_count == 6000 {
-            self.writer.flush().unwrap();
-            println!("Done!");
-            std::process::exit(0);
-        }
     }
 
     fn hello(&self) {

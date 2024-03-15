@@ -10,8 +10,9 @@ fn main() {
 
     // load configuration 1
     let configuration_1 = File::open("configuration_1.yaml").unwrap();
-    let configuration: Result<elafry::configuration::Configuration, serde_yaml::Error> = serde_yaml::from_reader(configuration_1);
-    
+    let configuration: Result<elafry::types::configuration::Configuration, serde_yaml::Error> =
+        serde_yaml::from_reader(configuration_1);
+
     match configuration {
         Ok(configuration) => {
             for task in configuration.tasks {
@@ -19,19 +20,19 @@ fn main() {
                     agent.execute(action);
                 }
             }
-        },
+        }
         Err(e) => {
             println!("Error: {:?}", e);
         }
     }
 
-    // wait 10 seconds
-    std::thread::sleep(std::time::Duration::from_secs(10));
-    agent.write();
+    // wait 20 seconds
+    std::thread::sleep(std::time::Duration::from_secs(20));
 
     // load configuration 2
     let configuration_2 = File::open("configuration_2.yaml").unwrap();
-    let configuration: Result<elafry::configuration::Configuration, serde_yaml::Error> = serde_yaml::from_reader(configuration_2);
+    let configuration: Result<elafry::types::configuration::Configuration, serde_yaml::Error> =
+        serde_yaml::from_reader(configuration_2);
 
     match configuration {
         Ok(configuration) => {
@@ -40,12 +41,34 @@ fn main() {
                     agent.execute(action);
                 }
             }
-        },
+        }
         Err(e) => {
             println!("Error: {:?}", e);
         }
     }
 
-    // wait 200 seconds
-    std::thread::sleep(std::time::Duration::from_secs(200));
+    // wait 20 seconds
+    std::thread::sleep(std::time::Duration::from_secs(20));
+    agent.write();
+
+    // load configuration 3
+    let configuration_3 = File::open("configuration_3.yaml").unwrap();
+    let configuration: Result<elafry::types::configuration::Configuration, serde_yaml::Error> =
+        serde_yaml::from_reader(configuration_3);
+
+    match configuration {
+        Ok(configuration) => {
+            for task in configuration.tasks {
+                for action in task.actions {
+                    agent.execute(action);
+                }
+            }
+        }
+        Err(e) => {
+            println!("Error: {:?}", e);
+        }
+    }
+
+    // wait 1 seconds
+    std::thread::sleep(std::time::Duration::from_secs(1));
 }

@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Configuration {
@@ -33,6 +33,7 @@ pub struct AddComponentData {
     #[serde(rename = "component-id")]
     pub component_id: uuid::Uuid,
     pub component: String,
+    pub core: usize,
     pub version: String,
 }
 

@@ -1,28 +1,68 @@
 tasks:
-  - id: e55d4c20-cc36-4f8d-a8d4-815fce6a55da
+  - id: 324613e5-bce6-4425-9079-ea1638cf66b6
     actions:
-      - !SetSchedule
-        id: 286855f8-752e-4116-9703-ec6ad9d84fb1
+      - !AddComponent
+        id: f4af9d65-4b2f-4912-8a00-1a3a7e81d12b
         data:
-          frequency: 200
-          major-frames: []
+          component-id: 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
+          component: fcs_b
+          core: 3
+          version: 1.0.0
 
       - !StopComponent
-        id: de3a7544-d775-48cf-bde0-aa8b732db188
-        data:
-          component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
-
-      - !StopComponent
-        id: 47960e80-1157-4e5f-ad0b-539a10e403ef
+        id: 44403375-c221-4a80-aebe-d82b28a3ac94
         data:
           component-id: 4d2f439b-ae60-42b6-ae45-b4db5d020f21
 
-      - !RemoveComponent
-        id: c66bc67f-9a69-42c9-aa48-e7e09bef017b
+      - !RemoveRoute
+        id: a472743f-2b50-46de-96de-2c8a307b4d2c
         data:
-          component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
+          source:
+            component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
+            channel-id: 1
+
+      - !RemoveRoute
+        id: 3b93baac-cb1d-44cc-afed-5e40e49c597d
+        data:
+          source:
+            component-id: 4d2f439b-ae60-42b6-ae45-b4db5d020f21
+            channel-id: 2
+
+      - !SetSchedule
+        id: 5f58c251-9695-4bb8-a9cc-1582cfcb50a5
+        data:
+          frequency: 500
+          major-frames:
+            - minor-frames:
+                - component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
+                - component-id: 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
+
+      - !StartComponent
+        id: d5cb1c8f-140b-403c-983c-c958538fc2ab
+        data:
+          component-id: 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
+
+      - !AddRoute
+        id: 15c8227a-0a29-4ab0-9eda-0c8467b7820e
+        data:
+          source:
+            component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
+            channel-id: 1
+          target:
+            component-id: 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
+            channel-id: 1
+
+      - !AddRoute
+        id: 6fd3af88-d1f6-46d4-9c0c-ba539bdb59d6
+        data:
+          source:
+            component-id: 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
+            channel-id: 2
+          target:
+            component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
+            channel-id: 2
 
       - !RemoveComponent
-        id: b0159a27-2345-4bd9-bf91-05a9b7a98d32
+        id: 54f954d1-4f4e-4d1d-8d05-de1daba57444
         data:
           component-id: 4d2f439b-ae60-42b6-ae45-b4db5d020f21

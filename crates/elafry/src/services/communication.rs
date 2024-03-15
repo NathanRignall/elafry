@@ -1,15 +1,8 @@
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::os::unix::net::UnixStream;
-use serde::{Serialize, Deserialize};
 
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
-pub struct Message {
-    pub channel_id: u32,
-    pub data: Vec<u8>,
-    pub count: u32,
-    pub timestamp: u64,
-}
+use crate::types::communication::Message;
 
 pub struct Manager {
     stream: UnixStream,
@@ -18,7 +11,10 @@ pub struct Manager {
 
 impl Manager {
     pub fn new(stream: UnixStream) -> Manager {
-        Manager { stream, messages: HashMap::new() }
+        Manager {
+            stream,
+            messages: HashMap::new(),
+        }
     }
 
     pub fn receive(&mut self) {
@@ -31,7 +27,7 @@ impl Manager {
                 Ok(_) => {
                     // get length of message
                     let length = u32::from_be_bytes(length_buf);
-                    
+
                     // don't read if length is 0
                     if length == 0 {
                         continue;
@@ -51,7 +47,7 @@ impl Manager {
                             continue;
                         }
                     };
-                    
+
                     // add message to hashmap
                     let channel_id = message.channel_id;
 
@@ -92,7 +88,7 @@ impl Manager {
 
     pub fn send_message(&mut self, message: Message) {
         let mut stream = &self.stream;
-        
+
         // serialize message
         let message_buf = bincode::serialize(&message).unwrap();
         let length = message_buf.len() as u32;
@@ -105,5 +101,4 @@ impl Manager {
             Err(e) => panic!("encountered IO error: {}", e),
         }
     }
-    
 }

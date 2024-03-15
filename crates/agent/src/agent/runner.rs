@@ -4,9 +4,9 @@ use std::io::{Read, Write};
 use std::os::fd::{FromRawFd, IntoRawFd, OwnedFd};
 use std::os::unix::net::UnixStream;
 use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
-use elafry::communications::Message;
+use elafry::types::communication::Message;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct RouteEndpoint {
@@ -19,6 +19,9 @@ pub struct Component {
     control_socket: UnixStream,
     control_count: u8,
     data_socket: UnixStream,
+    data_count: u8,
+    state_socket: UnixStream,
+    state_count: u8,
     child: std::process::Child,
     times: Vec<u64>,
 }
@@ -38,7 +41,7 @@ pub struct MinorFrame {
 
 pub struct Runner {
     components: Arc<Mutex<HashMap<uuid::Uuid, Component>>>,
-    routes: Arc<RwLock<HashMap<RouteEndpoint, RouteEndpoint>>>,
+    routes: Arc<Mutex<HashMap<RouteEndpoint, RouteEndpoint>>>,
     schedule: Arc<Mutex<Schedule>>,
     times: Arc<Mutex<Vec<(u64, u64, u64, u64)>>>,
 }
@@ -47,7 +50,7 @@ impl Runner {
     pub fn new() -> Runner {
         Runner {
             components: Arc::new(Mutex::new(HashMap::new())),
-            routes: Arc::new(RwLock::new(HashMap::new())),
+            routes: Arc::new(Mutex::new(HashMap::new())),
             schedule: Arc::new(Mutex::new(Schedule {
                 period: std::time::Duration::from_micros(1_000_000 / 100),
                 major_frames: Vec::new(),
@@ -56,17 +59,20 @@ impl Runner {
         }
     }
 
-    pub fn add_component(&mut self, id: uuid::Uuid, path: &str) {
+    pub fn add_component(&mut self, id: uuid::Uuid, path: &str, core: usize) {
         println!("Adding component {}", path);
 
         // create control and data sockets
         let (mut control_socket, child_control_socket) = UnixStream::pair().unwrap();
         let (data_socket, child_data_socket) = UnixStream::pair().unwrap();
+        let (state_socket, child_state_socket) = UnixStream::pair().unwrap();
         data_socket.set_nonblocking(true).unwrap();
+        state_socket.set_nonblocking(true).unwrap();
 
         // create fds for the child process
         let child_control_socket_fd = child_control_socket.into_raw_fd();
         let child_data_socket_fd = child_data_socket.into_raw_fd();
+        let child_state_socket_fd = child_state_socket.into_raw_fd();
 
         // spawn the child process
         let binary_path = format!("target/release/{}", path);
@@ -81,6 +87,10 @@ impl Runner {
                     child_fd: 11,
                     parent_fd: unsafe { OwnedFd::from_raw_fd(child_data_socket_fd) },
                 },
+                FdMapping {
+                    child_fd: 12,
+                    parent_fd: unsafe { OwnedFd::from_raw_fd(child_state_socket_fd) },
+                },
             ])
             .unwrap();
         // redirect the child's stderr to the parent's stderr
@@ -93,11 +103,12 @@ impl Runner {
         // stop socket from being closed when it goes out of scope
         let _ = unsafe { UnixStream::from_raw_fd(child_control_socket_fd) };
         let _ = unsafe { UnixStream::from_raw_fd(child_data_socket_fd) };
+        let _ = unsafe { UnixStream::from_raw_fd(child_state_socket_fd) };
 
-        // use libc to set the process core affinity to core 3
+        // use libc to set the process core affinity to specified core
         let mut cpu_set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
         unsafe {
-            libc::CPU_SET(3, &mut cpu_set);
+            libc::CPU_SET(core, &mut cpu_set);
             let ret = libc::sched_setaffinity(
                 child.id() as libc::pid_t,
                 std::mem::size_of_val(&cpu_set),
@@ -133,6 +144,9 @@ impl Runner {
             control_socket,
             control_count: 0,
             data_socket,
+            data_count: 0,
+            state_socket,
+            state_count: 0,
             child,
             times: Vec::new(),
         };
@@ -221,14 +235,14 @@ impl Runner {
 
     pub fn add_route(&mut self, source: RouteEndpoint, target: RouteEndpoint) {
         println!("Adding route: {:?} -> {:?}", source, target);
-        let mut route_lock = self.routes.write().unwrap();
+        let mut route_lock = self.routes.lock().unwrap();
         route_lock.insert(source, target);
         println!("Finished adding route");
     }
 
     pub fn remove_route(&mut self, source: RouteEndpoint) {
         println!("Removing route: {:?}", source);
-        let mut route_lock = self.routes.write().unwrap();
+        let mut route_lock = self.routes.lock().unwrap();
         route_lock.remove(&source);
         println!("Finished removing route");
     }
@@ -250,10 +264,10 @@ impl Runner {
             let pid = unsafe { libc::getpid() };
             println!("Runner thread pid: {}", pid);
 
-            // use libc to set the process core affinity to core 2
+            // use libc to set the process core affinity to core 1
             let mut cpu_set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
             unsafe {
-                libc::CPU_SET(2, &mut cpu_set);
+                libc::CPU_SET(1, &mut cpu_set);
                 let ret = libc::pthread_setaffinity_np(
                     libc::pthread_self(),
                     std::mem::size_of_val(&cpu_set),
@@ -281,9 +295,6 @@ impl Runner {
             let mut last_sleep = std::time::Duration::from_micros(0);
             let mut last_duration = std::time::Duration::from_micros(0);
             let mut overruns = 0;
-
-            #[cfg(feature = "instrument")]
-            println!("Instrumentation enabled");
 
             loop {
                 let last_time = std::time::Instant::now();
@@ -317,56 +328,11 @@ impl Runner {
 
                 // execute components
                 if frame_count > 0 {
-                    let schedule = schedule.lock().unwrap();
-                    let major_frame = &schedule.major_frames[index];
-
-                    for (_, frame) in major_frame.minor_frames.iter().enumerate() {
-                        // get component
-                        let mut components = components.lock().unwrap();
-                        let component = match components.get_mut(&frame.component_id) {
-                            Some(component) => component,
-                            None => {
-                                println!("Component not found {:?}", frame.component_id);
-                                continue;
-                            }
-                        };
-
-                        if component.run {
-                            // wake up component
-                            component
-                                .control_socket
-                                .write_all(&[b'w', component.control_count])
-                                .unwrap();
-                            component.control_count += 1;
-                            let mut buffer = [0; 1];
-                            component.control_socket.read_exact(&mut buffer).unwrap();
-
-                            let timestamp = std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap()
-                                .as_micros() as u64;
-                            component.times.push(timestamp);
-
-                            // execute component
-                            component
-                                .control_socket
-                                .write_all(&[b'r', component.control_count])
-                                .unwrap();
-                            component.control_count += 1;
-                            let mut buffer = [0; 1];
-                            component.control_socket.read_exact(&mut buffer).unwrap();
-
-                            if buffer[0] != b'k' {
-                                panic!("Failed to run component");
-                            }
-                        }
-                    }
+                    execute_frame(components.clone(), schedule.clone(), index);
                 }
 
                 // route messages
-                {
-                    route(components.clone(), routes.clone());
-                }
+                route_messages(components.clone(), routes.clone());
 
                 // increment index for next frame
                 index += 1;
@@ -410,21 +376,68 @@ impl Runner {
         let times = self.times.lock().unwrap();
         let mut writer = csv::Writer::from_path("times.csv").expect("Failed to open file");
         for time in times.iter() {
-            writer
-                .serialize(time)
-                .expect("Failed to write to file");
+            writer.serialize(time).expect("Failed to write to file");
         }
     }
 }
 
-fn route(
+fn execute_frame(
     components: Arc<Mutex<HashMap<uuid::Uuid, Component>>>,
-    routes: Arc<RwLock<HashMap<RouteEndpoint, RouteEndpoint>>>,
+    schedule: Arc<Mutex<Schedule>>,
+    index: usize,
+) {
+    let schedule = schedule.lock().unwrap();
+    let major_frame = &schedule.major_frames[index];
+
+    for (_, frame) in major_frame.minor_frames.iter().enumerate() {
+        let mut components = components.lock().unwrap();
+        let component = match components.get_mut(&frame.component_id) {
+            Some(component) => component,
+            None => {
+                println!("Component not found {:?}", frame.component_id);
+                continue;
+            }
+        };
+
+        if component.run {
+            component
+                .control_socket
+                .write_all(&[b'w', component.control_count])
+                .unwrap();
+            component.control_count += 1;
+            let mut buffer = [0; 1];
+            component.control_socket.read_exact(&mut buffer).unwrap();
+
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_micros() as u64;
+            component.times.push(timestamp);
+
+            component
+                .control_socket
+                .write_all(&[b'r', component.control_count])
+                .unwrap();
+            component.control_count += 1;
+            let mut buffer = [0; 1];
+            component.control_socket.read_exact(&mut buffer).unwrap();
+
+            if buffer[0] != b'k' {
+                panic!("Failed to run component");
+            }
+        }
+    }
+}
+
+fn route_messages(
+    components: Arc<Mutex<HashMap<uuid::Uuid, Component>>>,
+    routes: Arc<Mutex<HashMap<RouteEndpoint, RouteEndpoint>>>,
 ) {
     let components_clone = Arc::clone(&components);
     let routes_clone = Arc::clone(&routes);
 
     let mut components_lock = components_clone.lock().unwrap();
+    let routes_lock = routes_clone.lock().unwrap();
     let mut exit_buffer: HashMap<uuid::Uuid, Vec<Message>> = HashMap::new();
 
     // check for data
@@ -463,9 +476,6 @@ fn route(
                             continue;
                         }
                     };
-
-                    // look for a route
-                    let routes_lock = routes_clone.read().unwrap();
 
                     let destination: Option<RouteEndpoint>;
                     {

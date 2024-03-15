@@ -14,23 +14,26 @@ impl Agent {
         Agent { runner }
     }
 
-    pub fn execute(&mut self, action: elafry::configuration::Action) {
+    pub fn execute(&mut self, action: elafry::types::configuration::Action) {
         println!("Agent::execute");
         match action {
-            elafry::configuration::Action::AddComponent(action) => {
-                self.runner
-                    .add_component(action.data.component_id, &action.data.component);
+            elafry::types::configuration::Action::AddComponent(action) => {
+                self.runner.add_component(
+                    action.data.component_id,
+                    &action.data.component,
+                    action.data.core,
+                );
             }
-            elafry::configuration::Action::StartComponent(action) => {
+            elafry::types::configuration::Action::StartComponent(action) => {
                 self.runner.start_component(action.data.component_id);
             }
-            elafry::configuration::Action::StopComponent(action) => {
+            elafry::types::configuration::Action::StopComponent(action) => {
                 self.runner.stop_component(action.data.component_id);
             }
-            elafry::configuration::Action::RemoveComponent(action) => {
+            elafry::types::configuration::Action::RemoveComponent(action) => {
                 self.runner.remove_component(action.data.component_id);
             }
-            elafry::configuration::Action::AddRoute(action) => {
+            elafry::types::configuration::Action::AddRoute(action) => {
                 self.runner.add_route(
                     runner::RouteEndpoint {
                         component_id: action.data.source.component_id,
@@ -42,13 +45,13 @@ impl Agent {
                     },
                 );
             }
-            elafry::configuration::Action::RemoveRoute(action) => {
+            elafry::types::configuration::Action::RemoveRoute(action) => {
                 self.runner.remove_route(runner::RouteEndpoint {
                     component_id: action.data.source.component_id,
                     channel_id: action.data.source.channel_id,
                 });
             }
-            elafry::configuration::Action::SetSchedule(action) => {
+            elafry::types::configuration::Action::SetSchedule(action) => {
                 self.runner.set_schedule(runner::Schedule {
                     period: std::time::Duration::from_micros(1_000_000 / action.data.frequency),
                     major_frames: action

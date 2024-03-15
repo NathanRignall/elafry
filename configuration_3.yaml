@@ -1,0 +1,28 @@
+tasks:
+  - id: e55d4c20-cc36-4f8d-a8d4-815fce6a55da
+    actions:
+      - !SetSchedule
+        id: 286855f8-752e-4116-9703-ec6ad9d84fb1
+        data:
+          frequency: 200
+          major-frames: []
+
+      - !StopComponent
+        id: de3a7544-d775-48cf-bde0-aa8b732db188
+        data:
+          component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
+
+      - !StopComponent
+        id: 47960e80-1157-4e5f-ad0b-539a10e403ef
+        data:
+          component-id: 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
+
+      - !RemoveComponent
+        id: c66bc67f-9a69-42c9-aa48-e7e09bef017b
+        data:
+          component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
+
+      - !RemoveComponent
+        id: b0159a27-2345-4bd9-bf91-05a9b7a98d32
+        data:
+          component-id: 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
