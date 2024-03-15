@@ -8,6 +8,12 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use elafry::communications::Message;
 
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+pub struct RouteEndpoint {
+    pub component_id: uuid::Uuid,
+    pub channel_id: u32,
+}
+
 pub struct Component {
     run: bool,
     control_socket: UnixStream,
@@ -17,9 +23,23 @@ pub struct Component {
     times: Vec<u64>,
 }
 
+pub struct Schedule {
+    pub period: std::time::Duration,
+    pub major_frames: Vec<MajorFrame>,
+}
+
+pub struct MajorFrame {
+    pub minor_frames: Vec<MinorFrame>,
+}
+
+pub struct MinorFrame {
+    pub component_id: uuid::Uuid,
+}
+
 pub struct Runner {
     components: Arc<Mutex<HashMap<uuid::Uuid, Component>>>,
-    routes: Arc<RwLock<HashMap<elafry::configuration::RouteEndpoint, elafry::configuration::RouteEndpoint>>>,
+    routes: Arc<RwLock<HashMap<RouteEndpoint, RouteEndpoint>>>,
+    schedule: Arc<Mutex<Schedule>>,
 }
 
 impl Runner {
@@ -27,6 +47,10 @@ impl Runner {
         Runner {
             components: Arc::new(Mutex::new(HashMap::new())),
             routes: Arc::new(RwLock::new(HashMap::new())),
+            schedule: Arc::new(Mutex::new(Schedule {
+                period: std::time::Duration::from_micros(1_000_000 / 100),
+                major_frames: Vec::new(),
+            })),
         }
     }
 
@@ -73,23 +97,21 @@ impl Runner {
         unsafe {
             libc::CPU_SET(3, &mut cpu_set);
             let ret = libc::sched_setaffinity(
-                child.id() as libc::pid_t, 
-                std::mem::size_of_val(&cpu_set), 
-                &cpu_set
+                child.id() as libc::pid_t,
+                std::mem::size_of_val(&cpu_set),
+                &cpu_set,
             );
             if ret != 0 {
                 panic!("Failed to set affinity");
             }
         }
-    
+
         // use libc to set the process sechdeuler to SCHEDULER FFIO
         unsafe {
             let ret = libc::sched_setscheduler(
                 child.id() as libc::pid_t,
                 libc::SCHED_FIFO,
-                &libc::sched_param {
-                    sched_priority: 99,
-                },
+                &libc::sched_param { sched_priority: 99 },
             );
             if ret != 0 {
                 println!("Failed to set scheduler");
@@ -164,13 +186,19 @@ impl Runner {
         match components.get_mut(&id) {
             Some(component) => {
                 // wake up component
-                component.control_socket.write_all(&[b'w', component.control_count]).unwrap();
+                component
+                    .control_socket
+                    .write_all(&[b'w', component.control_count])
+                    .unwrap();
                 component.control_count += 1;
                 let mut buffer = [0; 1];
                 component.control_socket.read_exact(&mut buffer).unwrap();
 
                 // send stop signal
-                component.control_socket.write_all(&[b'q', component.control_count]).unwrap();
+                component
+                    .control_socket
+                    .write_all(&[b'q', component.control_count])
+                    .unwrap();
 
                 // wait for the child to exit
                 component.child.wait().unwrap();
@@ -189,28 +217,36 @@ impl Runner {
         println!("Removed component {}", id);
     }
 
-    pub fn add_route(&mut self, source: elafry::configuration::RouteEndpoint, destination: elafry::configuration::RouteEndpoint) {
-        println!("Adding route: {:?} -> {:?}", source, destination);
+    pub fn add_route(&mut self, source: RouteEndpoint, target: RouteEndpoint) {
+        println!("Adding route: {:?} -> {:?}", source, target);
         let mut route_lock = self.routes.write().unwrap();
-        route_lock.insert(source, destination);
+        route_lock.insert(source, target);
         println!("Finished adding route");
     }
 
-    pub fn remove_route(&mut self, source: elafry::configuration::RouteEndpoint) {
+    pub fn remove_route(&mut self, source: RouteEndpoint) {
         println!("Removing route: {:?}", source);
         let mut route_lock = self.routes.write().unwrap();
         route_lock.remove(&source);
         println!("Finished removing route");
     }
 
+    pub fn set_schedule(&mut self, schedule: Schedule) {
+        println!("Setting schedule");
+        let mut schedule_lock = self.schedule.lock().unwrap();
+        *schedule_lock = schedule;
+        println!("Finished setting schedule");
+    }
+
     pub fn run(&mut self) {
         let components = self.components.clone();
         let routes = self.routes.clone();
+        let schedule = self.schedule.clone();
 
         let _ = std::thread::spawn(move || {
             let pid = unsafe { libc::getpid() };
             println!("Runner thread pid: {}", pid);
-    
+
             // use libc to set the process core affinity to core 2
             let mut cpu_set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
             unsafe {
@@ -218,62 +254,85 @@ impl Runner {
                 let ret = libc::pthread_setaffinity_np(
                     libc::pthread_self(),
                     std::mem::size_of_val(&cpu_set),
-                    &cpu_set
+                    &cpu_set,
                 );
                 if ret != 0 {
                     println!("Failed to set affinity");
                 }
             }
-        
+
             // use libc to set the process sechdeuler to SCHEDULER FFIO
             unsafe {
                 let ret = libc::pthread_setschedparam(
                     libc::pthread_self(),
                     libc::SCHED_FIFO,
-                    &libc::sched_param {
-                        sched_priority: 99,
-                    },
+                    &libc::sched_param { sched_priority: 99 },
                 );
                 if ret != 0 {
                     println!("Failed to set scheduler");
                 }
             }
 
-            let mut last_time;
-            let period = std::time::Duration::from_micros(1_000_000 / 200 as u64);
+            // frame index
+            let mut index = 0;
 
             #[cfg(feature = "instrument")]
             println!("Instrumentation enabled");
 
             loop {
-                last_time = std::time::Instant::now();
+                let last_time = std::time::Instant::now();
 
-                {
-                    let mut components = components.lock().unwrap();
-                    for (_, component) in components.iter_mut() {
+                // get the period and frame count
+                let (period, frame_count) = {
+                    let schedule = schedule.lock().unwrap();
+                    (schedule.period, schedule.major_frames.len())
+                };
+
+                // reset index if it's out of bounds
+                if index == frame_count {
+                    index = 0;
+                }
+
+                // execute components
+                if frame_count > 0 {
+                    let schedule = schedule.lock().unwrap();
+                    let major_frame = &schedule.major_frames[index];
+
+                    for (_, frame) in major_frame.minor_frames.iter().enumerate() {
+                        // get component
+                        let mut components = components.lock().unwrap();
+                        let component = match components.get_mut(&frame.component_id) {
+                            Some(component) => component,
+                            None => {
+                                println!("Component not found {:?}", frame.component_id);
+                                continue;
+                            }
+                        };
+
                         if component.run {
                             // wake up component
-                            // println!("Waking up component");
-                            component.control_socket.write_all(&[b'w', component.control_count]).unwrap();
+                            component
+                                .control_socket
+                                .write_all(&[b'w', component.control_count])
+                                .unwrap();
                             component.control_count += 1;
                             let mut buffer = [0; 1];
                             component.control_socket.read_exact(&mut buffer).unwrap();
-                            // println!("Woke up component");
 
                             let timestamp = std::time::SystemTime::now()
                                 .duration_since(std::time::UNIX_EPOCH)
                                 .unwrap()
-                                .as_micros()
-                                as u64;
+                                .as_micros() as u64;
                             component.times.push(timestamp);
 
                             // execute component
-                            // println!("Executing component");
-                            component.control_socket.write_all(&[b'r', component.control_count]).unwrap();
+                            component
+                                .control_socket
+                                .write_all(&[b'r', component.control_count])
+                                .unwrap();
                             component.control_count += 1;
                             let mut buffer = [0; 1];
                             component.control_socket.read_exact(&mut buffer).unwrap();
-                            // println!("Executed component");
 
                             if buffer[0] != b'k' {
                                 panic!("Failed to run component");
@@ -281,10 +340,16 @@ impl Runner {
                         }
                     }
                 }
+
+                // route messages
                 {
                     route(components.clone(), routes.clone());
                 }
 
+                // increment index for next frame
+                index += 1;
+
+                // sleep for the rest of the period
                 let now = std::time::Instant::now();
                 let duration = now.duration_since(last_time);
 
@@ -317,7 +382,7 @@ impl Runner {
 
 fn route(
     components: Arc<Mutex<HashMap<uuid::Uuid, Component>>>,
-    routes: Arc<RwLock<HashMap<elafry::configuration::RouteEndpoint, elafry::configuration::RouteEndpoint>>>,
+    routes: Arc<RwLock<HashMap<RouteEndpoint, RouteEndpoint>>>,
 ) {
     let components_clone = Arc::clone(&components);
     let routes_clone = Arc::clone(&routes);
@@ -365,11 +430,11 @@ fn route(
                     // look for a route
                     let routes_lock = routes_clone.read().unwrap();
 
-                    let destination: Option<elafry::configuration::RouteEndpoint>;
+                    let destination: Option<RouteEndpoint>;
                     {
                         destination = routes_lock
-                            .get(&elafry::configuration::RouteEndpoint {
-                                app_id: *id,
+                            .get(&RouteEndpoint {
+                                component_id: *id,
                                 channel_id: message.channel_id,
                             })
                             .cloned();
@@ -378,20 +443,20 @@ fn route(
                     match destination {
                         Some(destination) => {
                             // insert the message into the exit buffer
-                            match exit_buffer.get_mut(&destination.app_id) {
+                            match exit_buffer.get_mut(&destination.component_id) {
                                 Some(buffer) => {
                                     buffer.push(message);
                                 }
                                 None => {
-                                    exit_buffer.insert(destination.app_id, vec![message]);
+                                    exit_buffer.insert(destination.component_id, vec![message]);
                                 }
                             }
                         }
                         None => {
                             println!(
                                 "No route found for: {:?}",
-                                elafry::configuration::RouteEndpoint {
-                                    app_id: *id,
+                                RouteEndpoint {
+                                    component_id: *id,
                                     channel_id: message.channel_id
                                 }
                             );

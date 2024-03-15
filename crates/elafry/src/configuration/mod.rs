@@ -19,6 +19,7 @@ pub enum Action {
     RemoveComponent(RemoveComponentAction),
     AddRoute(AddRouteAction),
     RemoveRoute(RemoveRouteAction),
+    SetSchedule(SetScheduleAction),
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -29,8 +30,8 @@ pub struct AddComponentAction {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct AddComponentData {
-    #[serde(rename = "app-id")]
-    pub app_id: uuid::Uuid,
+    #[serde(rename = "component-id")]
+    pub component_id: uuid::Uuid,
     pub component: String,
     pub version: String,
 }
@@ -43,8 +44,8 @@ pub struct StartComponentAction {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct StartComponentData {
-    #[serde(rename = "app-id")]
-    pub app_id: uuid::Uuid,
+    #[serde(rename = "component-id")]
+    pub component_id: uuid::Uuid,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -55,8 +56,8 @@ pub struct StopComponentAction {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct StopComponentData {
-    #[serde(rename = "app-id")]
-    pub app_id: uuid::Uuid,
+    #[serde(rename = "component-id")]
+    pub component_id: uuid::Uuid,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -67,8 +68,8 @@ pub struct RemoveComponentAction {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct RemoveComponentData {
-    #[serde(rename = "app-id")]
-    pub app_id: uuid::Uuid,
+    #[serde(rename = "component-id")]
+    pub component_id: uuid::Uuid,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -80,7 +81,7 @@ pub struct AddRouteAction {
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct AddRouteData {
     pub source: RouteEndpoint,
-    pub destination: RouteEndpoint,
+    pub target: RouteEndpoint,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -92,14 +93,37 @@ pub struct RemoveRouteAction {
 #[derive(Serialize, Deserialize, PartialEq, Debug, Eq, Hash, Clone)]
 pub struct RemoveRouteData {
     pub source: RouteEndpoint,
-    pub destination: RouteEndpoint,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Eq, Hash, Clone)]
 pub struct RouteEndpoint {
-    #[serde(rename = "app-id")]
-    pub app_id: uuid::Uuid,
+    #[serde(rename = "component-id")]
+    pub component_id: uuid::Uuid,
     #[serde(rename = "channel-id")]
     pub channel_id: u32,
 }
 
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+pub struct SetScheduleAction {
+    pub id: uuid::Uuid,
+    pub data: SetScheduleData,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+pub struct SetScheduleData {
+    pub frequency: u64,
+    #[serde(rename = "major-frames")]
+    pub major_frames: Vec<MajorFrame>,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+pub struct MajorFrame {
+    #[serde(rename = "minor-frames")]
+    pub minor_frames: Vec<MinorFrame>,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+pub struct MinorFrame {
+    #[serde(rename = "component-id")]
+    pub component_id: uuid::Uuid,
+}
