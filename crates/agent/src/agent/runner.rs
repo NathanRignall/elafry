@@ -40,6 +40,7 @@ pub struct Runner {
     components: Arc<Mutex<HashMap<uuid::Uuid, Component>>>,
     routes: Arc<RwLock<HashMap<RouteEndpoint, RouteEndpoint>>>,
     schedule: Arc<Mutex<Schedule>>,
+    times: Arc<Mutex<Vec<(u64, u64, u64, u64)>>>,
 }
 
 impl Runner {
@@ -51,6 +52,7 @@ impl Runner {
                 period: std::time::Duration::from_micros(1_000_000 / 100),
                 major_frames: Vec::new(),
             })),
+            times: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -242,6 +244,7 @@ impl Runner {
         let components = self.components.clone();
         let routes = self.routes.clone();
         let schedule = self.schedule.clone();
+        let times = self.times.clone();
 
         let _ = std::thread::spawn(move || {
             let pid = unsafe { libc::getpid() };
@@ -275,12 +278,31 @@ impl Runner {
 
             // frame index
             let mut index = 0;
+            let mut last_sleep = std::time::Duration::from_micros(0);
+            let mut last_duration = std::time::Duration::from_micros(0);
+            let mut overruns = 0;
 
             #[cfg(feature = "instrument")]
             println!("Instrumentation enabled");
 
             loop {
                 let last_time = std::time::Instant::now();
+
+                {
+                    // get lock on times
+                    let mut times = times.lock().unwrap();
+
+                    let timestamp = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_micros() as u64;
+                    times.push((
+                        timestamp,
+                        last_sleep.as_micros() as u64,
+                        last_duration.as_micros() as u64,
+                        overruns,
+                    ));
+                }
 
                 // get the period and frame count
                 let (period, frame_count) = {
@@ -352,15 +374,22 @@ impl Runner {
                 // sleep for the rest of the period
                 let now = std::time::Instant::now();
                 let duration = now.duration_since(last_time);
+                let mut sleep = std::time::Duration::from_micros(0);
 
-                if duration < period {
-                    std::thread::sleep(period - duration);
+                if duration <= period {
+                    sleep = period - duration;
+                    std::thread::sleep(sleep);
                 } else {
+                    overruns += 1;
                     println!(
-                        "Warning: loop took longer than period {}us",
-                        duration.as_micros()
+                        "Warning: loop took longer than period {}us - {}us",
+                        duration.as_micros(),
+                        last_sleep.as_micros()
                     );
                 }
+
+                last_duration = duration;
+                last_sleep = sleep;
             }
         });
     }
@@ -376,6 +405,14 @@ impl Runner {
                     .serialize((i, time))
                     .expect("Failed to write to file");
             }
+        }
+
+        let times = self.times.lock().unwrap();
+        let mut writer = csv::Writer::from_path("times.csv").expect("Failed to open file");
+        for time in times.iter() {
+            writer
+                .serialize(time)
+                .expect("Failed to write to file");
         }
     }
 }
