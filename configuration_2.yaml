@@ -9,6 +9,8 @@ tasks:
           core: 3
           version: 1.0.0
 
+  - id: 7e1e1da5-9a6e-41bc-b85c-2c07403159a4
+    actions:
       - !StopComponent
         id: 44403375-c221-4a80-aebe-d82b28a3ac94
         data:
@@ -18,24 +20,15 @@ tasks:
         id: a472743f-2b50-46de-96de-2c8a307b4d2c
         data:
           source:
-            component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
+            endpoint: !component-id 9a069153-c335-47c5-a653-dec6c0e7c280
             channel-id: 1
 
       - !RemoveRoute
         id: 3b93baac-cb1d-44cc-afed-5e40e49c597d
         data:
           source:
-            component-id: 4d2f439b-ae60-42b6-ae45-b4db5d020f21
+            endpoint: !component-id 4d2f439b-ae60-42b6-ae45-b4db5d020f21
             channel-id: 2
-
-      - !SetSchedule
-        id: 5f58c251-9695-4bb8-a9cc-1582cfcb50a5
-        data:
-          frequency: 500
-          major-frames:
-            - minor-frames:
-                - component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
-                - component-id: 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
 
       - !StartComponent
         id: d5cb1c8f-140b-403c-983c-c958538fc2ab
@@ -46,22 +39,34 @@ tasks:
         id: 15c8227a-0a29-4ab0-9eda-0c8467b7820e
         data:
           source:
-            component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
+            endpoint: !component-id 9a069153-c335-47c5-a653-dec6c0e7c280
             channel-id: 1
           target:
-            component-id: 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
+            endpoint: !component-id  4310fde1-8c21-4054-a5d6-8b64c2c2afcd
             channel-id: 1
 
       - !AddRoute
         id: 6fd3af88-d1f6-46d4-9c0c-ba539bdb59d6
         data:
           source:
-            component-id: 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
+            endpoint: !component-id 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
             channel-id: 2
           target:
-            component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
+            endpoint: !component-id 9a069153-c335-47c5-a653-dec6c0e7c280
             channel-id: 2
 
+      - !SetSchedule
+        id: 5f58c251-9695-4bb8-a9cc-1582cfcb50a5
+        data:
+          frequency: 500
+          major-frames:
+            - minor-frames:
+                - component-id: a8b72b60-d420-4c9a-8211-3afb36a1af7a
+                - component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
+                - component-id: 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
+
+  - id: 956dac0d-5c1c-4144-8850-6759b91b776d
+    actions:
       - !RemoveComponent
         id: 54f954d1-4f4e-4d1d-8d05-de1daba57444
         data:

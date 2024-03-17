@@ -1,5 +1,5 @@
 [package]
-name = "agent"
+name = "cli"
 version = "0.1.0"
 edition = "2021"
 
@@ -17,3 +17,6 @@ libc = { workspace = true }
 serde_yaml = { workspace = true }
 
 csv = "1.1"
+
+[features]
+instrument = []

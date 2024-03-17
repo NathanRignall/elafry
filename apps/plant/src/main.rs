@@ -184,11 +184,7 @@ impl elafry::Component for Plant {
                 self.state.setpoint,
             ))
             .unwrap();
-    }
-
-    fn hello(&self) {
-        eprintln!("Hello, World! (Plant)");
-    }
+        }
 }
 
 fn main() {

@@ -144,10 +144,6 @@ impl elafry::Component for FcsA {
         };
         services.communication.send_message(message);
     }
-
-    fn hello(&self) {
-        println!("Hello, World! (FCS A)");
-    }
 }
 
 fn main() {

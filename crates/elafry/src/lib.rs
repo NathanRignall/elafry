@@ -5,7 +5,6 @@ pub trait Component {
     fn new() -> Self;
     fn init(&mut self, services: &mut Services);
     fn run(&mut self, services: &mut Services);
-    fn hello(&self);
 }
 
 pub struct Services {

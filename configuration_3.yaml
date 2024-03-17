@@ -1,12 +1,6 @@
 tasks:
   - id: e55d4c20-cc36-4f8d-a8d4-815fce6a55da
     actions:
-      - !SetSchedule
-        id: 286855f8-752e-4116-9703-ec6ad9d84fb1
-        data:
-          frequency: 200
-          major-frames: []
-
       - !StopComponent
         id: de3a7544-d775-48cf-bde0-aa8b732db188
         data:
@@ -17,6 +11,30 @@ tasks:
         data:
           component-id: 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
 
+      - !RemoveRoute
+        id: 5a5183f2-e20a-413b-8dbc-f99a7d41729a
+        data:
+          source:
+            endpoint: !component-id 9a069153-c335-47c5-a653-dec6c0e7c280
+            channel-id: 1
+
+      - !RemoveRoute
+        id: 665d4f8f-4a26-4a90-bf44-bf4274f7b092
+        data:
+          source:
+            endpoint: !component-id 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
+            channel-id: 2
+
+      - !SetSchedule
+        id: 286855f8-752e-4116-9703-ec6ad9d84fb1
+        data:
+          frequency: 200
+          major-frames:
+            - minor-frames:
+              - component-id: a8b72b60-d420-4c9a-8211-3afb36a1af7a
+
+  - id: b4d9f5c4-c9f9-44af-ac6b-df84862ecd1d
+    actions:
       - !RemoveComponent
         id: c66bc67f-9a69-42c9-aa48-e7e09bef017b
         data:

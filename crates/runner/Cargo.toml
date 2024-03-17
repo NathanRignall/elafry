@@ -1,0 +1,18 @@
+[package]
+name = "runner"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+elafry = {workspace = true}
+
+uuid = { workspace = true }
+command-fds = { workspace = true }
+log = { workspace = true }
+bincode = { workspace = true }
+serde_yaml = { workspace = true }
+libc = { workspace = true }
+
+simple_logger = "4.3.3"

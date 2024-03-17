@@ -9,7 +9,7 @@ impl Manager {
         Manager { stream }
     }
 
-    pub fn save_state(&mut self, state: Vec<u8>) {
+    pub fn save_state(&mut self, _: Vec<u8>) {
         println!("Saving state");
     }
 
