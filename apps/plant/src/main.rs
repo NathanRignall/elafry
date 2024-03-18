@@ -174,5 +174,6 @@ impl elafry::Component for Plant {
 }
 
 fn main() {
+    simple_logger::SimpleLogger::new().env().init().unwrap();
     elafry::run(Plant::new());
 }

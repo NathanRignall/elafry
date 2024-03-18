@@ -104,9 +104,7 @@ pub fn run<T: Component + 'static>(mut component: T) {
 
         match buf[0] {
             b'q' => {
-                child_control_socket
-                    .write_all(&[b'k'])
-                    .expect("Failed to write to socket");
+                log::info!("Quitting");
                 break;
             }
             b'r' => {

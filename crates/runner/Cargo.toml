@@ -14,5 +14,4 @@ log = { workspace = true }
 bincode = { workspace = true }
 serde_yaml = { workspace = true }
 libc = { workspace = true }
-
-simple_logger = "4.3.3"
+simple_logger = { workspace = true }

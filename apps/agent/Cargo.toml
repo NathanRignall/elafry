@@ -10,3 +10,4 @@ elafry = { workspace = true, features=["instrument"]}
 
 serde = { workspace = true }
 bincode = { workspace = true }
+simple_logger = { workspace = true }

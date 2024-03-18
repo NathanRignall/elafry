@@ -9,6 +9,7 @@ dependencies = [
  "bincode",
  "elafry",
  "serde",
+ "simple_logger",
 ]
 
 [[package]]
@@ -120,6 +121,7 @@ dependencies = [
  "bincode",
  "elafry",
  "serde",
+ "simple_logger",
 ]
 
 [[package]]
@@ -129,6 +131,7 @@ dependencies = [
  "bincode",
  "elafry",
  "serde",
+ "simple_logger",
 ]
 
 [[package]]
@@ -222,6 +225,7 @@ dependencies = [
  "csv",
  "elafry",
  "serde",
+ "simple_logger",
 ]
 
 [[package]]

@@ -128,5 +128,6 @@ impl elafry::Component for FcsA {
 }
 
 fn main() {
+    simple_logger::SimpleLogger::new().env().init().unwrap();
     elafry::run(FcsA::new());
 }

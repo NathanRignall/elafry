@@ -21,21 +21,21 @@ impl elafry::Component for Agent {
 
         // when loop_count is 1000, send a message
         if self.loop_count == 500 {
-            println!("Configuration 1");
+            println!("-----Configuration 1-----");
             let control_data_buf = "configuration_1.yaml".as_bytes().to_vec();
             services.communication.send_message(1, control_data_buf);
         }
 
         // when loop_count is 6000, send a message
         if self.loop_count == 2000 {
-            println!("Configuration 2");
+            println!("-----Configuration 2-----");
             let control_data_buf = "configuration_2.yaml".as_bytes().to_vec();
             services.communication.send_message(1, control_data_buf);
         }
 
         // when loop_count is 11000, send a message
         if self.loop_count == 3000 {
-            println!("Configuration 3");
+            println!("-----Configuration 3-----");
             let control_data_buf = "configuration_3.yaml".as_bytes().to_vec();
             services.communication.send_message(1, control_data_buf);
         }
@@ -43,5 +43,6 @@ impl elafry::Component for Agent {
 }
 
 fn main() {
+    simple_logger::SimpleLogger::new().env().init().unwrap();
     elafry::run(Agent::new());
 }
