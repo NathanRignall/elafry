@@ -316,6 +316,8 @@ impl ManagementService {
 
             // load new configuration
             self.load(new_configuration);
+
+            return;
         }
 
         // check if there are any tasks in the configuration

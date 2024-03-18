@@ -140,7 +140,7 @@ impl SchedulerService {
     fn execute(&mut self, state: &mut crate::GlobalState) {
         // if there are no major frames, return
         if state.schedule.major_frames.is_empty() {
-            log::error!("No major frames");
+            log::warn!("No major frames");
             return;
         }
 
