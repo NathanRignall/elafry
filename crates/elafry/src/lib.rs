@@ -50,10 +50,10 @@ pub fn run<T: Component + 'static>(mut component: T) {
     // initialize the component
     component.init(&mut services);
 
-    // acknowledge component init
-    child_control_socket
-        .write_all(&[b'k'])
-        .expect("Failed to write to socket");
+    // // acknowledge component init
+    // child_control_socket
+    //     .write_all(&[b'k'])
+    //     .expect("Failed to write to socket");
 
     #[cfg(feature = "instrument")]
     log::debug!("Instrumentation enabled");

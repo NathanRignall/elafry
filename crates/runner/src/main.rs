@@ -142,6 +142,17 @@ fn main() {
         ));
         state_service.run(&mut state);
 
+        times.push((
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_micros() as u64,
+            last_sleep.as_micros() as u64,
+            last_duration.as_micros() as u64,
+            overruns,
+            4,
+        ));
+
         // if done, break
         if state.done {
             break;
