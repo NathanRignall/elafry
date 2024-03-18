@@ -42,6 +42,32 @@ pub struct GlobalState {
 fn main() {
     simple_logger::SimpleLogger::new().env().init().unwrap();
 
+    // use libc to set the process core affinity to specified core
+    let mut cpu_set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
+    unsafe {
+        libc::CPU_SET(1, &mut cpu_set);
+        let ret = libc::sched_setaffinity(
+            0,
+            std::mem::size_of_val(&cpu_set),
+            &cpu_set,
+        );
+        if ret != 0 {
+            log::error!("Failed to set affinity");
+        }
+    }
+
+    // use libc to set the process sechdeuler to SCHEDULER FFIO
+    unsafe {
+        let ret = libc::sched_setscheduler(
+            0,
+            libc::SCHED_FIFO,
+            &libc::sched_param { sched_priority: 99 },
+        );
+        if ret != 0 {
+            log::error!("Failed to set scheduler");
+        }
+    }
+
     let mut state = GlobalState {
         components: HashMap::new(),
         routes: HashMap::new(),

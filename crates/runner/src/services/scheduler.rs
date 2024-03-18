@@ -90,7 +90,7 @@ impl SchedulerService {
                         &cpu_set,
                     );
                     if ret != 0 {
-                        panic!("Failed to set affinity");
+                        log::error!("Failed to set affinity");
                     }
                 }
 
@@ -102,7 +102,7 @@ impl SchedulerService {
                         &libc::sched_param { sched_priority: 99 },
                     );
                     if ret != 0 {
-                        println!("Failed to set scheduler");
+                        log::error!("Failed to set scheduler");
                     }
                 }
 
