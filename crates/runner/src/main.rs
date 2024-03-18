@@ -41,7 +41,7 @@ pub struct GlobalState {
 }
 
 fn main() {
-    simple_logger::SimpleLogger::new().env().init().unwrap();
+    env_logger::init();
 
     // use libc to set the process core affinity to specified core
     let mut cpu_set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
@@ -157,7 +157,7 @@ fn main() {
             std::thread::sleep(sleep);
         } else {
             overruns += 1;
-            println!(
+            log::warn!(
                 "Warning: loop took longer than period {}us - {}us",
                 duration.as_micros(),
                 last_sleep.as_micros()

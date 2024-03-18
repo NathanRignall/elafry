@@ -86,7 +86,6 @@ impl elafry::Component for FcsB {
     fn init(&mut self, _services: &mut elafry::Services) {
         self.receive_message_count = 0;
         self.send_message_count = 0;
-        println!("Starting up!");
     }
 
     fn run(&mut self, services: &mut elafry::Services) {
@@ -100,7 +99,7 @@ impl elafry::Component for FcsB {
                     let sensor_data: SensorData = match bincode::deserialize(&message.data) {
                         Ok(sensor_data) => sensor_data,
                         Err(e) => {
-                            println!("Failed to deserialize sensor_data; err = {:?}", e);
+                            log::error!("Failed to deserialize sensor_data; err = {:?}", e);
                             continue;
                         }
                     };
@@ -128,6 +127,5 @@ impl elafry::Component for FcsB {
 }
 
 fn main() {
-    simple_logger::SimpleLogger::new().env().init().unwrap();
     elafry::run(FcsB::new());
 }

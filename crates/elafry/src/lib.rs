@@ -21,6 +21,8 @@ use std::{
 };
 
 pub fn run<T: Component + 'static>(mut component: T) {
+    env_logger::init();
+    
     // establish socket with parent
     let child_control_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(10) };
     let child_data_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(11) };
@@ -54,7 +56,7 @@ pub fn run<T: Component + 'static>(mut component: T) {
         .expect("Failed to write to socket");
 
     #[cfg(feature = "instrument")]
-    println!("Instrumentation enabled");
+    log::debug!("Instrumentation enabled");
 
     #[cfg(feature = "instrument")]
     let mut times = Vec::new();
@@ -85,7 +87,7 @@ pub fn run<T: Component + 'static>(mut component: T) {
         }
 
         if buf[1] != child_control_count {
-            println!(
+            log::warn!(
                 "Control count mismatch ({} != {})",
                 buf[1], child_control_count
             );
@@ -120,7 +122,7 @@ pub fn run<T: Component + 'static>(mut component: T) {
 
     #[cfg(feature = "instrument")]
     {
-        println!("Instrumentation complete");
+        log::debug!("Instrumentation complete");
 
         // extract component type name
         let type_name = std::any::type_name::<T>();

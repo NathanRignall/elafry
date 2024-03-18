@@ -132,7 +132,7 @@ impl SchedulerService {
 
                 component.implentation = Some(implementation);
 
-                log::info!("Component initialized {:?}", component.path);
+                log::debug!("Component initialized {:?}", component.path);
             }
         }
     }
@@ -223,7 +223,7 @@ impl SchedulerService {
         for (id, component) in state.components.iter_mut() {
             // if component is marked for removal, remove it
             if component.remove {
-                log::info!("Removing component {:?}", component.path);
+                log::debug!("Removing component {:?}", component.path);
 
                 match &mut component.implentation {
                     Some(implentation) => {

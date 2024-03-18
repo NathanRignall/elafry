@@ -86,10 +86,8 @@ impl elafry::Component for Plant {
     }
 
     fn init(&mut self, _services: &mut elafry::Services) {
-        eprintln!("Initializing!");
         self.send_message_count = 0;
         self.receive_message_count = 0;
-        eprintln!("Starting up!");
     }
 
     fn run(&mut self, services: &mut elafry::Services) {
@@ -105,7 +103,7 @@ impl elafry::Component for Plant {
                     let control_data: ControlData = match bincode::deserialize(&message.data) {
                         Ok(control_data) => control_data,
                         Err(e) => {
-                            println!("Failed to deserialize control_data; err = {:?}", e);
+                            log::error!("Failed to deserialize control_data; err = {:?}", e);
                             continue;
                         }
                     };
@@ -174,6 +172,5 @@ impl elafry::Component for Plant {
 }
 
 fn main() {
-    simple_logger::SimpleLogger::new().env().init().unwrap();
     elafry::run(Plant::new());
 }
