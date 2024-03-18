@@ -83,7 +83,7 @@ fn main() {
     let state_service = StateService::new();
 
     // frame index
-    let period = std::time::Duration::from_micros(1_000_000 / 200 as u64);
+    let period = std::time::Duration::from_micros(1_000_000 / 500 as u64);
     let mut last_sleep = std::time::Duration::from_micros(0);
     let mut last_duration = std::time::Duration::from_micros(0);
     let mut overruns = 0;

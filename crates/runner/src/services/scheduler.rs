@@ -248,9 +248,9 @@ impl SchedulerService {
                             .write_all(&[b'q', implentation.control_socket.count])
                             .unwrap();
                         
-                        // wait for the component to exit and kill it if it does not
-                        implentation.child.wait().unwrap();
-                        implentation.child.kill().unwrap();
+                        // // wait for the component to exit and kill it if it does not
+                        // implentation.child.wait().unwrap();
+                        // implentation.child.kill().unwrap();
                     }
                     None => {
                         log::error!("Component not started {:?}", component.path);
