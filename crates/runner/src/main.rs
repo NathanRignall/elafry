@@ -37,6 +37,7 @@ pub struct GlobalState {
     pub schedule: Schedule,
     pub messages: HashMap<u32, Vec<Message>>,
     pub times: Vec<(u64, u64, u64, u64)>,
+    pub done: bool,
 }
 
 fn main() {
@@ -46,11 +47,7 @@ fn main() {
     let mut cpu_set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
     unsafe {
         libc::CPU_SET(1, &mut cpu_set);
-        let ret = libc::sched_setaffinity(
-            0,
-            std::mem::size_of_val(&cpu_set),
-            &cpu_set,
-        );
+        let ret = libc::sched_setaffinity(0, std::mem::size_of_val(&cpu_set), &cpu_set);
         if ret != 0 {
             log::error!("Failed to set affinity");
         }
@@ -77,6 +74,7 @@ fn main() {
         },
         messages: HashMap::new(),
         times: vec![],
+        done: false,
     };
 
     let mut communication_service = CommunicationService::new();
@@ -95,23 +93,59 @@ fn main() {
 
     loop {
         let last_time = std::time::Instant::now();
-        
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_micros() as u64;
 
         times.push((
-            timestamp,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_micros() as u64,
             last_sleep.as_micros() as u64,
             last_duration.as_micros() as u64,
             overruns,
+            0,
         ));
-
         scheduler_service.run(&mut state);
+
+        times.push((
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_micros() as u64,
+            last_sleep.as_micros() as u64,
+            last_duration.as_micros() as u64,
+            overruns,
+            1,
+        ));
         communication_service.run(&mut state);
+
+        times.push((
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_micros() as u64,
+            last_sleep.as_micros() as u64,
+            last_duration.as_micros() as u64,
+            overruns,
+            2,
+        ));
         management_service.run(&mut state);
+
+        times.push((
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_micros() as u64,
+            last_sleep.as_micros() as u64,
+            last_duration.as_micros() as u64,
+            overruns,
+            3,
+        ));
         state_service.run(&mut state);
+
+        // if done, break
+        if state.done {
+            break;
+        }
 
         // sleep for the rest of the period
         let now = std::time::Instant::now();
@@ -133,4 +167,22 @@ fn main() {
         last_duration = duration;
         last_sleep = sleep;
     }
+
+    for (id, component) in state.components.iter_mut() {
+        let instrument_file = format!("instrumentation_{}.csv", id);
+
+        let mut writer = csv::Writer::from_path(instrument_file).expect("Failed to open file");
+        for (i, time) in component.times.iter().enumerate() {
+            writer
+                .serialize((i, time))
+                .expect("Failed to write to file");
+        }
+    }
+
+    let mut writer = csv::Writer::from_path("times.csv").expect("Failed to open file");
+    for time in times.iter() {
+        writer.serialize(time).expect("Failed to write to file");
+    }
+
+    log::info!("Runner loop complete");
 }

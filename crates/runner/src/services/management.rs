@@ -280,6 +280,20 @@ impl ManagementService {
         let mut new_configuration = Option::None;
 
         // get messages
+        if state.messages.contains_key(&0) {
+            let messages = state.messages.get_mut(&0).unwrap();
+                
+            match messages.pop() {
+                Some(_) => {
+                    // kill runner
+                    log::info!("Received kill message");
+                    state.done = true;
+                }
+                None => {}
+            }
+        }
+
+        // get messages
         if state.messages.contains_key(&1) {
             let messages = state.messages.get_mut(&1).unwrap();
                 

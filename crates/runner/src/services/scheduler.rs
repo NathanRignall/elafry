@@ -172,6 +172,7 @@ impl SchedulerService {
 
             match &mut component.implentation {
                 Some(implentation) => {
+                    // wake the component
                     implentation
                         .control_socket
                         .socket
@@ -191,6 +192,7 @@ impl SchedulerService {
                         .as_micros() as u64;
                     component.times.push(timestamp);
 
+                    // run the component
                     implentation
                         .control_socket
                         .socket
@@ -225,13 +227,29 @@ impl SchedulerService {
 
                 match &mut component.implentation {
                     Some(implentation) => {
+                        // wake the component
+                        implentation
+                            .control_socket
+                            .socket
+                            .write_all(&[b'w', implentation.control_socket.count])
+                            .unwrap();
+                        implentation.control_socket.count += 1;
+                        let mut buffer = [0; 1];
+                        implentation
+                            .control_socket
+                            .socket
+                            .read_exact(&mut buffer)
+                            .unwrap();
+
+                        // stop the component
                         implentation
                             .control_socket
                             .socket
                             .write_all(&[b'q', implentation.control_socket.count])
                             .unwrap();
-                        implentation.control_socket.count += 1;
-
+                        
+                        // wait for the component to exit and kill it if it does not
+                        implentation.child.wait().unwrap();
                         implentation.child.kill().unwrap();
                     }
                     None => {

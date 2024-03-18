@@ -21,6 +21,16 @@ tasks:
         data:
           source:
             endpoint: !component-id a8b72b60-d420-4c9a-8211-3afb36a1af7a
+            channel-id: 0
+          target:
+            endpoint: !runner
+            channel-id: 0
+      
+      - !AddRoute
+        id: 9f140c2c-c7d7-4b5e-81e0-4307d6045bf5
+        data:
+          source:
+            endpoint: !component-id a8b72b60-d420-4c9a-8211-3afb36a1af7a
             channel-id: 1
           target:
             endpoint: !runner
