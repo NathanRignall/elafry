@@ -34,7 +34,7 @@ impl SchedulerService {
     fn intialize(&mut self, state: &mut crate::GlobalState) {
         // intialize components that are not implemented
         for (_, component) in state.components.iter_mut() {
-            if component.implentation.is_none() {
+            if component.implentation.is_none() && component.remove == false {
                 log::debug!("Initializing component {:?}", component.path);
 
                 // create control and data sockets
@@ -215,9 +215,52 @@ impl SchedulerService {
         }
     }
 
+    fn remove(&mut self, state: &mut crate::GlobalState) -> Vec<uuid::Uuid> {
+        let mut removed = Vec::new();
+
+        for (id, component) in state.components.iter_mut() {
+            // if component is marked for removal, remove it
+            if component.remove {
+                log::info!("Removing component {:?}", component.path);
+
+                match &mut component.implentation {
+                    Some(implentation) => {
+                        implentation
+                            .control_socket
+                            .socket
+                            .write_all(&[b'q', implentation.control_socket.count])
+                            .unwrap();
+                        implentation.control_socket.count += 1;
+
+                        implentation.child.kill().unwrap();
+                    }
+                    None => {
+                        log::error!("Component not started {:?}", component.path);
+                    }
+                }
+
+                component.implentation = None;
+                removed.push(id.clone());
+            }
+        }
+
+        removed
+    }
+
+    fn cleanup(&mut self, state: &mut crate::GlobalState) {
+        // get the components that are removed
+        let removed = self.remove(state);
+
+        // remove the components from the state
+        for id in removed {
+            state.components.remove(&id);
+        }
+    }
+
     pub fn run(&mut self, state: &mut crate::GlobalState) {
         self.intialize(state);
         self.execute(state);
+        self.cleanup(state);
         self.frame_index += 1;
     }
 }

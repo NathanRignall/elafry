@@ -4,6 +4,6 @@ use serde::{Deserialize, Serialize};
 pub struct Message {
     pub channel_id: u32,
     pub data: Vec<u8>,
-    pub count: u32,
+    pub count: u8,
     pub timestamp: u64,
 }

@@ -1,12 +1,18 @@
-use std::{collections::HashMap, os::unix::net::UnixStream, sync::{Arc, Mutex}};
+use std::{collections::HashMap, os::unix::net::UnixStream};
 
 use elafry::types::communication::Message;
 use services::{communication::RouteEndpoint, scheduler::Schedule};
+
+use crate::services::{
+    communication::CommunicationService, management::ManagementService,
+    scheduler::SchedulerService, state::StateService,
+};
 
 mod services;
 
 pub struct Component {
     run: bool,
+    remove: bool,
     path: String,
     core: usize,
     implentation: Option<Implementation>,
@@ -35,7 +41,7 @@ pub struct GlobalState {
 
 fn main() {
     simple_logger::SimpleLogger::new().env().init().unwrap();
-    
+
     let mut state = GlobalState {
         components: HashMap::new(),
         routes: HashMap::new(),
@@ -47,23 +53,34 @@ fn main() {
         times: vec![],
     };
 
-    let mut communication_service = services::communication::CommunicationService::new();
-    let mut management_service = services::management::ManagementService::new();
-    let mut scheduler_service = services::scheduler::SchedulerService::new();
-    let mut state_service = services::state::StateService::new();
-
-    management_service.load(&mut state, "default.yaml".to_string());
+    let mut communication_service = CommunicationService::new();
+    let mut management_service = ManagementService::new("default.yaml".to_string());
+    let mut scheduler_service = SchedulerService::new();
+    let state_service = StateService::new();
 
     // frame index
     let period = std::time::Duration::from_micros(1_000_000 / 200 as u64);
     let mut last_sleep = std::time::Duration::from_micros(0);
     let mut last_duration = std::time::Duration::from_micros(0);
     let mut overruns = 0;
+    let mut times = vec![];
 
     log::info!("Starting runner loop with period {}us", period.as_micros());
 
     loop {
         let last_time = std::time::Instant::now();
+        
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_micros() as u64;
+
+        times.push((
+            timestamp,
+            last_sleep.as_micros() as u64,
+            last_duration.as_micros() as u64,
+            overruns,
+        ));
 
         scheduler_service.run(&mut state);
         communication_service.run(&mut state);

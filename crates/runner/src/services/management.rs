@@ -10,10 +10,15 @@ pub struct ManagementService {
 }
 
 impl ManagementService {
-    pub fn new() -> Self {
-        ManagementService {
+    pub fn new(configuration: String) -> ManagementService {
+        let mut service = ManagementService {
             configuration: elafry::types::configuration::Configuration { tasks: Vec::new() },
-        }
+        };
+
+        // load the configuration
+        service.load(configuration);
+
+        service
     }
 
     fn add_component(
@@ -28,6 +33,7 @@ impl ManagementService {
         // create the component
         let component = Component {
             run: false,
+            remove: false,
             path: path.to_string(),
             core,
             implentation: None,
@@ -86,7 +92,25 @@ impl ManagementService {
         }
     }
 
-    fn remove_component(&mut self, state: &crate::GlobalState, id: uuid::Uuid) {}
+    fn remove_component(&mut self, state: &mut crate::GlobalState, id: uuid::Uuid) {
+        log::debug!("Removing component {}", id);
+
+        // get the component
+        match state.components.get_mut(&id) {
+            Some(component) => {
+                log::debug!("Got component {}", id);
+
+                // flag the component for removal
+                component.remove = true;
+                component.run = false;
+
+                log::debug!("Removed component {}", id);
+            }
+            None => {
+                panic!("Component {} not found", id)
+            }
+        }
+    }
 
     fn add_route(
         &mut self,
@@ -143,7 +167,6 @@ impl ManagementService {
         state: &mut crate::GlobalState,
         action: elafry::types::configuration::Action,
     ) {
-        log::debug!("Agent::execute");
         match action {
             elafry::types::configuration::Action::AddComponent(action) => {
                 self.add_component(
@@ -231,12 +254,9 @@ impl ManagementService {
                 );
             }
         }
-        log::debug!("Agent::execute done");
     }
 
-    pub fn load(&mut self, state: &mut crate::GlobalState, configuration: String) {
-        log::debug!("Agent::load");
-
+    fn load(&mut self, configuration: String) {
         // open the configuration file
         let file = std::fs::File::open(configuration).unwrap();
 
@@ -254,8 +274,6 @@ impl ManagementService {
                 log::error!("Error reading configuration file: {}", error);
             }
         }
-
-        log::debug!("Agent::load done");
     }
 
     pub fn run(&mut self, state: &mut crate::GlobalState) {
@@ -283,7 +301,7 @@ impl ManagementService {
             log::info!("New configuration: {}", new_configuration);
 
             // load new configuration
-            self.load(state, new_configuration);
+            self.load(new_configuration);
         }
 
         // check if there are any tasks in the configuration

@@ -34,13 +34,11 @@ pub fn run<T: Component + 'static>(mut component: T) {
     // set up data socket
     let child_data_socket = unsafe { UnixStream::from_raw_fd(child_data_socket_fd) };
     child_data_socket.set_nonblocking(true).unwrap();
-    let mut child_data_count: u8 = 0;
 
     // set up state socket
     let child_state_socket = unsafe { UnixStream::from_raw_fd(child_state_socket_fd) };
     child_state_socket.set_nonblocking(true).unwrap();
-    let mut child_state_count: u8 = 0;
-
+    
     // setup services
     let mut services = Services {
         communication: services::communication::Manager::new(child_data_socket),
@@ -105,7 +103,12 @@ pub fn run<T: Component + 'static>(mut component: T) {
         child_control_count += 1;
 
         match buf[0] {
-            b'q' => break,
+            b'q' => {
+                child_control_socket
+                    .write_all(&[b'k'])
+                    .expect("Failed to write to socket");
+                break;
+            }
             b'r' => {
                 services.communication.receive();
                 component.run(&mut services);

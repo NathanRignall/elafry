@@ -90,25 +90,12 @@ impl elafry::Component for FcsA {
     }
 
     fn run(&mut self, services: &mut elafry::Services) {
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_micros() as u64;
-
         // do stuff with messages
         loop {
             let message = services.communication.get_message(1);
             match message {
                 Some(message) => {
                     self.receive_message_count += 1;
-
-                    if self.receive_message_count != message.count {
-                        println!(
-                            "--------COUNT MISMATCH-------- ({} != {})",
-                            self.receive_message_count, message.count
-                        );
-                        self.receive_message_count = message.count;
-                    }
 
                     let sensor_data: SensorData = match bincode::deserialize(&message.data) {
                         Ok(sensor_data) => sensor_data,
@@ -136,13 +123,7 @@ impl elafry::Component for FcsA {
             org_timestamp: self.state.org_timestamp,
         };
         let control_data_buf = bincode::serialize(&control_data).unwrap();
-        let message = elafry::types::communication::Message {
-            channel_id: 2,
-            data: control_data_buf,
-            count: self.send_message_count,
-            timestamp: timestamp,
-        };
-        services.communication.send_message(message);
+        services.communication.send_message(2, control_data_buf);
     }
 }
 

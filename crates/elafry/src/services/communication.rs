@@ -6,6 +6,8 @@ use crate::types::communication::Message;
 
 pub struct Manager {
     stream: UnixStream,
+    send_count: u8,
+    receive_count: u8,
     messages: HashMap<u32, Vec<Message>>,
 }
 
@@ -13,6 +15,8 @@ impl Manager {
     pub fn new(stream: UnixStream) -> Manager {
         Manager {
             stream,
+            send_count: 0,
+            receive_count: 0,
             messages: HashMap::new(),
         }
     }
@@ -48,20 +52,23 @@ impl Manager {
                         }
                     };
 
+                    // check count of message matches receive count
+                    if message.count != self.receive_count {
+                        log::error!(
+                            "Received message with count {} but expected {}",
+                            message.count,
+                            self.receive_count
+                        );
+                        self.receive_count = message.count;
+                    }
+
+                    // increment receive count
+                    self.receive_count += 1;
+
                     // add message to hashmap
                     let channel_id = message.channel_id;
-
-                    // check if channel_id exists in hashmap
-                    if self.messages.contains_key(&channel_id) {
-                        // append message to vector
-                        let messages = self.messages.get_mut(&channel_id).unwrap();
-                        messages.push(message);
-                    } else {
-                        // create new vector and add message
-                        let mut messages = Vec::new();
-                        messages.push(message);
-                        self.messages.insert(channel_id, messages);
-                    }
+                    let messages = self.messages.entry(channel_id).or_insert(vec![]);
+                    messages.push(message);
                 }
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
                 Err(e) => panic!("encountered IO error: {}", e),
@@ -86,14 +93,31 @@ impl Manager {
         }
     }
 
-    pub fn send_message(&mut self, message: Message) {
+    pub fn send_message(&mut self, channel_id: u32, data: Vec<u8>) {
         let mut stream = &self.stream;
+
+        // get timestamp
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_micros() as u64;
+
+        // form message
+        let message = Message {
+            channel_id,
+            data,
+            count: self.send_count,
+            timestamp
+        };
 
         // serialize message
         let message_buf = bincode::serialize(&message).unwrap();
         let length = message_buf.len() as u32;
         let mut length_buf = length.to_be_bytes().to_vec();
         length_buf.append(&mut message_buf.clone());
+
+        // increment send count
+        self.send_count += 1;
 
         // if going to block, don't send message
         match stream.write_all(&length_buf) {

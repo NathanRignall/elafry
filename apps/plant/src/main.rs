@@ -102,14 +102,6 @@ impl elafry::Component for Plant {
                 Some(message) => {
                     self.receive_message_count += 1;
 
-                    if self.receive_message_count != message.count {
-                        println!(
-                            "--------COUNT MISMATCH-------- ({} != {})",
-                            self.receive_message_count, message.count
-                        );
-                        self.receive_message_count = message.count;
-                    }
-
                     let control_data: ControlData = match bincode::deserialize(&message.data) {
                         Ok(control_data) => control_data,
                         Err(e) => {
@@ -162,13 +154,7 @@ impl elafry::Component for Plant {
 
         self.send_message_count += 1;
         let sensor_data_buf = bincode::serialize(&sensor_data).unwrap();
-        let message = elafry::types::communication::Message {
-            channel_id: 1,
-            data: sensor_data_buf,
-            count: self.send_message_count,
-            timestamp: timestamp,
-        };
-        services.communication.send_message(message);
+        services.communication.send_message(1, sensor_data_buf);
 
         // calculate difference in time between now and last timestamp
         let time_diff = timestamp - self.last_timestamp;
