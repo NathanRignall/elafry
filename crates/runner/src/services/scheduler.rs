@@ -106,12 +106,12 @@ impl SchedulerService {
                     }
                 }
 
-                // // wait for the component to be ready
-                // let mut buffer = [0; 1];
-                // control_socket.read_exact(&mut buffer).unwrap();
-                // if buffer[0] != b'k' {
-                //     panic!("Failed to start component");
-                // }
+                // wait for the component to be ready
+                let mut buffer = [0; 1];
+                control_socket.read_exact(&mut buffer).unwrap();
+                if buffer[0] != b'k' {
+                    panic!("Failed to start component");
+                }
 
                 // create the component implementation
                 let implementation = crate::Implementation {

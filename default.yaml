@@ -1,24 +1,21 @@
 tasks:
   - id: 8327c2a1-0dbb-425e-aece-897c28c3f9b2
-    actions:
-      - !AddComponent
-        id: f3fd3273-750c-480c-ad84-6c9d700b75d6
-        data:
+    actions: !non-blocking
+      - id: f3fd3273-750c-480c-ad84-6c9d700b75d6
+        data: !add-component
           component-id: a8b72b60-d420-4c9a-8211-3afb36a1af7a
           component: agent
           core: 2
           version: 1.0.0
 
   - id: 5e1ec06d-6b0d-4897-a1ca-ab04e1f83be7
-    actions:
-      - !StartComponent
-        id: f8b89ead-0d83-4165-9c2b-e80013377580
-        data:
+    actions: !blocking
+      - id: f8b89ead-0d83-4165-9c2b-e80013377580
+        data: !start-component
           component-id: a8b72b60-d420-4c9a-8211-3afb36a1af7a
 
-      - !AddRoute
-        id: 775df2df-2aaf-4a05-a178-312e76d2a158
-        data:
+      - id: 775df2df-2aaf-4a05-a178-312e76d2a158
+        data: !add-route
           source:
             endpoint: !component-id a8b72b60-d420-4c9a-8211-3afb36a1af7a
             channel-id: 0
@@ -26,9 +23,8 @@ tasks:
             endpoint: !runner
             channel-id: 0
       
-      - !AddRoute
-        id: 9f140c2c-c7d7-4b5e-81e0-4307d6045bf5
-        data:
+      - id: 9f140c2c-c7d7-4b5e-81e0-4307d6045bf5
+        data: !add-route
           source:
             endpoint: !component-id a8b72b60-d420-4c9a-8211-3afb36a1af7a
             channel-id: 1
@@ -36,9 +32,8 @@ tasks:
             endpoint: !runner
             channel-id: 1
 
-      - !SetSchedule
-        id: 9b407a3f-d340-4704-b2f1-50b5574547f7
-        data:
+      - id: 9b407a3f-d340-4704-b2f1-50b5574547f7
+        data: !set-schedule
           frequency: 500
           major-frames:
             - minor-frames:

@@ -8,24 +8,49 @@ pub struct Configuration {
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Task {
     pub id: uuid::Uuid,
-    pub actions: Vec<Action>,
+    pub actions: Action,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub enum Action {
-    AddComponent(AddComponentAction),
-    StartComponent(StartComponentAction),
-    StopComponent(StopComponentAction),
-    RemoveComponent(RemoveComponentAction),
-    AddRoute(AddRouteAction),
-    RemoveRoute(RemoveRouteAction),
-    SetSchedule(SetScheduleAction),
+    #[serde(rename = "blocking")]
+    Blocking(Vec<BlockingAction>),
+    #[serde(rename = "non-blocking")]
+    NonBlocking(Vec<NonBlockingAction>),
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct AddComponentAction {
+pub struct BlockingAction {
     pub id: uuid::Uuid,
-    pub data: AddComponentData,
+    pub data: BlockingData,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct NonBlockingAction {
+    pub id: uuid::Uuid,
+    pub data: NonBlockingData,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub enum BlockingData {
+    #[serde(rename = "start-component")]
+    StartComponent(StartComponentData),
+    #[serde(rename = "stop-component")]
+    StopComponent(StopComponentData),
+    #[serde(rename = "add-route")]
+    AddRoute(AddRouteData),
+    #[serde(rename = "remove-route")]
+    RemoveRoute(RemoveRouteData),
+    #[serde(rename = "set-schedule")]
+    SetSchedule(SetScheduleData),
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub enum NonBlockingData {
+    #[serde(rename = "add-component")]
+    AddComponent(AddComponentData),
+    #[serde(rename = "remove-component")]
+    RemoveComponent(RemoveComponentData),
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
@@ -38,21 +63,9 @@ pub struct AddComponentData {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct StartComponentAction {
-    pub id: uuid::Uuid,
-    pub data: StartComponentData,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct StartComponentData {
     #[serde(rename = "component-id")]
     pub component_id: uuid::Uuid,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct StopComponentAction {
-    pub id: uuid::Uuid,
-    pub data: StopComponentData,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
@@ -62,33 +75,15 @@ pub struct StopComponentData {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct RemoveComponentAction {
-    pub id: uuid::Uuid,
-    pub data: RemoveComponentData,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct RemoveComponentData {
     #[serde(rename = "component-id")]
     pub component_id: uuid::Uuid,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct AddRouteAction {
-    pub id: uuid::Uuid,
-    pub data: AddRouteData,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct AddRouteData {
     pub source: RouteEndpoint,
     pub target: RouteEndpoint,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct RemoveRouteAction {
-    pub id: uuid::Uuid,
-    pub data: RemoveRouteData,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Eq, Hash, Clone)]
@@ -111,12 +106,6 @@ pub enum Endpoint {
     Address(String),
     #[serde(rename = "runner")]
     Runner,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-pub struct SetScheduleAction {
-    pub id: uuid::Uuid,
-    pub data: SetScheduleData,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
