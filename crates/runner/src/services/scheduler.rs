@@ -22,7 +22,7 @@ impl SchedulerService {
         SchedulerService { frame_index: 0 }
     }
 
-    fn execute(&mut self, state: &mut crate::GlobalState) {
+    fn execute(&mut self, state: &mut crate::global_state::GlobalState) {
         // if there are no major frames, return
         if state.schedule.major_frames.is_empty() {
             log::warn!("No major frames");
@@ -102,7 +102,7 @@ impl SchedulerService {
         }
     }
 
-    pub fn run(&mut self, state: &mut crate::GlobalState) {
+    pub fn run(&mut self, state: &mut crate::global_state::GlobalState) {
         self.execute(state);
         self.frame_index += 1;
     }

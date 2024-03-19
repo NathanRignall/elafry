@@ -1,4 +1,8 @@
-use std::{collections::HashMap, io::{Read, Write}, net::SocketAddr};
+use std::{
+    collections::HashMap,
+    io::{Read, Write},
+    net::SocketAddr,
+};
 
 use elafry::types::communication::Message;
 
@@ -33,38 +37,40 @@ impl CommunicationService {
         }
     }
 
-    pub fn run(&mut self, state: &mut crate::GlobalState) {
+    pub fn run(&mut self, state: &mut crate::global_state::GlobalState) {
         // check for data on components
         for (id, component) in state.components.iter_mut() {
             let mut length_buf = [0; 4];
 
             // loop for a maximum of 10 times until no more data is available
             for _ in 0..10 {
-
                 match &mut component.implentation {
                     Some(implentation) => {
                         match implentation.data_socket.socket.read_exact(&mut length_buf) {
                             Ok(_) => {
                                 // get length of message
                                 let length = u32::from_be_bytes(length_buf);
-        
+
                                 // don't read if length is 0
                                 if length == 0 {
                                     continue;
                                 }
-        
+
                                 // create buffer with length
                                 let message_buf = {
                                     let mut buf = vec![0; length as usize];
                                     match implentation.data_socket.socket.read_exact(&mut buf) {
                                         Ok(_) => buf,
                                         Err(e) => {
-                                            log::error!("Failed to read from socket; err = {:?}", e);
+                                            log::error!(
+                                                "Failed to read from socket; err = {:?}",
+                                                e
+                                            );
                                             continue;
                                         }
                                     }
                                 };
-        
+
                                 // deserialize message
                                 let message: Message = match bincode::deserialize(&message_buf) {
                                     Ok(message) => message,
@@ -73,17 +79,18 @@ impl CommunicationService {
                                         continue;
                                     }
                                 };
-        
+
                                 let destination: Option<RouteEndpoint>;
                                 {
-                                    destination = state.routes
+                                    destination = state
+                                        .routes
                                         .get(&RouteEndpoint {
                                             endpoint: Endpoint::Component(*id),
                                             channel_id: message.channel_id,
                                         })
                                         .cloned();
                                 }
-        
+
                                 match destination {
                                     Some(destination) => {
                                         // insert the message into the correct buffer
@@ -94,7 +101,8 @@ impl CommunicationService {
                                                         buffer.push(message);
                                                     }
                                                     None => {
-                                                        self.component_exit_buffer.insert(id, vec![message]);
+                                                        self.component_exit_buffer
+                                                            .insert(id, vec![message]);
                                                     }
                                                 }
                                             }
@@ -104,12 +112,17 @@ impl CommunicationService {
                                                         buffer.push(message);
                                                     }
                                                     None => {
-                                                        self.address_exit_buffer.insert(address, vec![message]);
+                                                        self.address_exit_buffer
+                                                            .insert(address, vec![message]);
                                                     }
                                                 }
                                             }
                                             Endpoint::Runner => {
-                                                state.messages.entry(message.channel_id).or_insert(Vec::new()).push(message);
+                                                state
+                                                    .messages
+                                                    .entry(message.channel_id)
+                                                    .or_insert(Vec::new())
+                                                    .push(message);
                                             }
                                         }
                                     }
@@ -137,13 +150,11 @@ impl CommunicationService {
                         continue;
                     }
                 }
-
-                
             }
         }
 
         // check for data on udp socket
-        for _ in 0..state.components.len() * 10 {
+        for _ in 0..state.total_components() * 10 {
             let mut length_buf = [0; 4];
 
             match self.udp_socket.recv_from(&mut length_buf) {
@@ -179,7 +190,8 @@ impl CommunicationService {
 
                     let destination: Option<RouteEndpoint>;
                     {
-                        destination = state.routes
+                        destination = state
+                            .routes
                             .get(&RouteEndpoint {
                                 endpoint: Endpoint::Address(address),
                                 channel_id: message.channel_id,
@@ -212,7 +224,11 @@ impl CommunicationService {
                                     }
                                 }
                                 Endpoint::Runner => {
-                                    state.messages.entry(message.channel_id).or_insert(Vec::new()).push(message);
+                                    state
+                                        .messages
+                                        .entry(message.channel_id)
+                                        .or_insert(Vec::new())
+                                        .push(message);
                                 }
                             }
                         }
@@ -236,7 +252,7 @@ impl CommunicationService {
                 }
             }
         }
-        
+
         // check for data to send to clear the exit component buffer
         for (id, component) in state.components.iter_mut() {
             let messages = match self.component_exit_buffer.get(id) {

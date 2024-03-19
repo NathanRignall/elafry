@@ -1,44 +1,10 @@
-use std::{collections::HashMap, os::unix::net::UnixStream};
-
-use elafry::types::communication::Message;
-use services::{communication::RouteEndpoint, scheduler::Schedule};
-
 use crate::services::{
-    communication::CommunicationService, management::ManagementService,
-    scheduler::SchedulerService, state::StateService,
+    communication::CommunicationService, management::ManagementService, scheduler::SchedulerService, state::StateService
 };
 
 mod services;
+mod global_state;
 
-pub struct Component {
-    run: bool,
-    remove: bool,
-    path: String,
-    core: usize,
-    implentation: Option<Implementation>,
-    times: Vec<u64>,
-}
-
-pub struct Implementation {
-    pub control_socket: Socket,
-    pub data_socket: Socket,
-    pub state_socket: Socket,
-    pub child: std::process::Child,
-}
-
-pub struct Socket {
-    pub socket: UnixStream,
-    pub count: u8,
-}
-
-pub struct GlobalState {
-    pub components: HashMap<uuid::Uuid, Component>,
-    pub routes: HashMap<RouteEndpoint, RouteEndpoint>,
-    pub schedule: Schedule,
-    pub messages: HashMap<u32, Vec<Message>>,
-    pub times: Vec<(u64, u64, u64, u64)>,
-    pub done: bool,
-}
 
 fn main() {
     env_logger::init();
@@ -65,17 +31,7 @@ fn main() {
         }
     }
 
-    let mut state = GlobalState {
-        components: HashMap::new(),
-        routes: HashMap::new(),
-        schedule: Schedule {
-            period: std::time::Duration::from_secs(1),
-            major_frames: vec![],
-        },
-        messages: HashMap::new(),
-        times: vec![],
-        done: false,
-    };
+    let mut global_state = global_state::GlobalState::new();
 
     let mut communication_service = CommunicationService::new();
     let mut management_service = ManagementService::new("default.yaml".to_string());
@@ -104,7 +60,7 @@ fn main() {
             overruns,
             0,
         ));
-        scheduler_service.run(&mut state);
+        scheduler_service.run(&mut global_state);
 
         times.push((
             std::time::SystemTime::now()
@@ -116,7 +72,7 @@ fn main() {
             overruns,
             1,
         ));
-        communication_service.run(&mut state);
+        communication_service.run(&mut global_state);
 
         times.push((
             std::time::SystemTime::now()
@@ -128,7 +84,7 @@ fn main() {
             overruns,
             2,
         ));
-        management_service.run(&mut state);
+        management_service.run(&mut global_state);
 
         times.push((
             std::time::SystemTime::now()
@@ -140,7 +96,7 @@ fn main() {
             overruns,
             3,
         ));
-        state_service.run(&mut state);
+        state_service.run(&mut global_state);
 
         times.push((
             std::time::SystemTime::now()
@@ -154,7 +110,7 @@ fn main() {
         ));
 
         // if done, break
-        if state.done {
+        if global_state.get_done() {
             break;
         }
 
@@ -179,16 +135,6 @@ fn main() {
         last_sleep = sleep;
     }
 
-    for (id, component) in state.components.iter_mut() {
-        let instrument_file = format!("instrumentation_{}.csv", id);
-
-        let mut writer = csv::Writer::from_path(instrument_file).expect("Failed to open file");
-        for (i, time) in component.times.iter().enumerate() {
-            writer
-                .serialize((i, time))
-                .expect("Failed to write to file");
-        }
-    }
 
     let mut writer = csv::Writer::from_path("times.csv").expect("Failed to open file");
     for time in times.iter() {

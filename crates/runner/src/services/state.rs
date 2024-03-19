@@ -9,7 +9,7 @@ impl StateService {
         }
     }
 
-    pub fn run(&self, _: &crate::GlobalState) {
+    pub fn run(&self, _: &crate::global_state::GlobalState) {
         // println!("Running state service");
 
     }
