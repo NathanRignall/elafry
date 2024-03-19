@@ -64,6 +64,18 @@ impl ManagementService {
         let done_remove_clone = done_remove.clone();
 
         let thread = std::thread::spawn(move || {
+            // use libc to set the process sechdeuler to SCHEDULER NORMAL with a priority of -20
+            unsafe {
+                let ret = libc::pthread_setschedparam(
+                    libc::pthread_self(),
+                    libc::SCHED_OTHER,
+                    &libc::sched_param { sched_priority: 0 },
+                );
+                if ret != 0 {
+                    println!("Failed to set scheduler");
+                }
+            }
+            
             background::main(receiver, non_blocking_actions, done_implement, done_remove)
         });
 
