@@ -1,7 +1,7 @@
 use std::{collections::HashMap, os::unix::net::UnixStream};
 
-use elafry::types::communication::Message;
 use crate::services::{communication::RouteEndpoint, scheduler::Schedule};
+use elafry::types::communication::Message;
 
 pub struct Component {
     pub run: bool,
@@ -32,7 +32,6 @@ pub struct GlobalState {
     done: bool,
 }
 
-
 impl GlobalState {
     pub fn new() -> Self {
         GlobalState {
@@ -57,94 +56,79 @@ impl GlobalState {
 
     pub fn start_component(&mut self, id: uuid::Uuid) {
         log::debug!("Starting component {}", id);
-    
+
         // get the component
         match self.components.get_mut(&id) {
             Some(component) => {
-                log::debug!("Got component {}", id);
-    
                 // don't start if not finish initializing
                 if component.implentation.is_none() {
                     log::error!("Component {} not initialized", id);
                     return;
                 }
-    
+
                 // start the component
                 component.run = true;
-    
-                log::debug!("Started component {}", id);
             }
             None => {
                 panic!("Component {} not found", id)
             }
         }
     }
-    
+
     pub fn stop_component(&mut self, id: uuid::Uuid) {
         log::debug!("Stopping component {}", id);
-    
+
         // get the component
         match self.components.get_mut(&id) {
             Some(component) => {
-                log::debug!("Got component {}", id);
-    
                 // stop the component
                 component.run = false;
-    
-                log::debug!("Stopped component {}", id);
             }
             None => {
                 panic!("Component {} not found", id)
             }
         }
     }
-    
+
     pub fn add_route(&mut self, source: RouteEndpoint, target: RouteEndpoint) {
         log::debug!("Adding route from {:?} to {:?}", source, target);
-    
+
         // add the route to the state
         self.routes.insert(source, target);
-    
-        log::debug!("Added route");
     }
-    
+
     pub fn remove_route(&mut self, from: RouteEndpoint) {
         log::debug!("Removing route from {:?}", from);
-    
+
         // remove the route from the state
         self.routes.remove(&from);
-    
-        log::debug!("Removed route from {:?}", from);
     }
 
     pub fn add_component(&mut self, id: uuid::Uuid, path: String, core: usize) {
         log::debug!("Adding component {}", id);
-    
+
         // add the component to the state
-        self.components.insert(id, Component {
-            run: false,
-            remove: false,
-            path,
-            core,
-            implentation: None,
-            times: vec![],
-        });
-    
-        log::debug!("Added component {}", id);
+        self.components.insert(
+            id,
+            Component {
+                run: false,
+                remove: false,
+                path,
+                core,
+                implentation: None,
+                times: vec![],
+            },
+        );
     }
 
     pub fn add_component_implementation(&mut self, id: uuid::Uuid, implementation: Implementation) {
         log::debug!("Adding implementation to component {}", id);
-    
+
         // get the component
         match self.components.get_mut(&id) {
             Some(component) => {
-                log::debug!("Got component {}", id);
-    
                 // add the implementation
                 component.implentation = Some(implementation);
-    
-                log::debug!("Added implementation to component {}", id);
             }
             None => {
                 panic!("Component {} not found", id)
@@ -154,17 +138,13 @@ impl GlobalState {
 
     pub fn remove_component(&mut self, id: uuid::Uuid) {
         log::debug!("Removing component {}", id);
-    
+
         // get the component
         match self.components.get_mut(&id) {
             Some(component) => {
-                log::debug!("Got component {}", id);
-    
                 // remove the component
                 component.remove = true;
                 component.run = false;
-    
-                log::debug!("Removed component {}", id);
             }
             None => {
                 panic!("Component {} not found", id)
@@ -174,16 +154,12 @@ impl GlobalState {
 
     pub fn remove_component_implementation(&mut self, id: uuid::Uuid) {
         log::debug!("Removing implementation from component {}", id);
-    
+
         // get the component
         match self.components.get_mut(&id) {
             Some(component) => {
-                log::debug!("Got component {}", id);
-    
                 // remove the implementation
                 component.implentation = None;
-    
-                log::debug!("Removed implementation from component {}", id);
             }
             None => {
                 panic!("Component {} not found", id)
@@ -193,7 +169,6 @@ impl GlobalState {
         // remove the component
         self.components.remove(&id);
     }
-
 
     pub fn get_component(&self, id: uuid::Uuid) -> Option<&Component> {
         self.components.get(&id)
@@ -250,6 +225,31 @@ impl GlobalState {
     //     components.into_iter()
     // }
 
+    pub fn set_schedule(&mut self, schedule: Schedule) {
+        log::debug!("Setting schedule");
+
+        // check if the schedule is valid by checking if all components in the schedule are in the state and initialized
+        for major_frame in &schedule.major_frames {
+            for minor_frame in &major_frame.minor_frames {
+                match self.get_component(minor_frame.component_id) {
+                    Some(component) => {
+                        if component.implentation.is_none() {
+                            log::error!("Component {} not initialized", minor_frame.component_id);
+                            return;
+                        }
+                    }
+                    None => {
+                        log::error!("Component {} not found", minor_frame.component_id);
+                        return;
+                    }
+                }
+            }
+        }
+
+        // set the schedule in the state
+        self.schedule = schedule;
+    }
+
     pub fn get_message(&mut self, channel_id: u32) -> Option<Message> {
         // check if channel_id exists in hashmap
         if self.messages.contains_key(&channel_id) {
@@ -262,9 +262,9 @@ impl GlobalState {
         }
     }
 
-    pub fn add_message(&mut self, message: Message) {
-        let channel_id = message.channel_id;
-        let messages = self.messages.entry(channel_id).or_insert(vec![]);
-        messages.push(message);
-    }
+    // pub fn add_message(&mut self, message: Message) {
+    //     let channel_id = message.channel_id;
+    //     let messages = self.messages.entry(channel_id).or_insert(vec![]);
+    //     messages.push(message);
+    // }
 }
