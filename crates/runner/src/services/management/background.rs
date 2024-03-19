@@ -7,15 +7,30 @@ use std::sync::mpsc::Sender;
 use std::sync::{mpsc, Arc, Mutex};
 
 use command_fds::{CommandFdExt, FdMapping};
-use elafry::types::configuration::NonBlockingData;
 use uuid::Uuid;
 
 use crate::global_state::Implementation;
 use crate::services::management::ActionState;
 
+pub enum NonBlockingImplementationData {
+    AddComponent(AddComponentImplementation),
+    RemoveComponent(RemoveComponentImplementation),
+}
+
+pub struct AddComponentImplementation {
+    pub component_id: Uuid,
+    pub component: String,
+    pub core: usize,
+}
+
+pub struct RemoveComponentImplementation {
+    pub component_id: Uuid,
+    pub implementation: Implementation,
+}
+
 pub fn main(
     receiver: mpsc::Receiver<()>,
-    non_blocking_actions: Arc<Mutex<Vec<NonBlockingData>>>,
+    non_blocking_actions: Arc<Mutex<Vec<NonBlockingImplementationData>>>,
     done_implement: Arc<Mutex<HashMap<Uuid, Implementation>>>,
     done_remove: Arc<Mutex<Vec<Uuid>>>,
 ) {
@@ -28,20 +43,22 @@ pub fn main(
                 // loop through all non-blocking actions
                 let mut non_blocking_actions = non_blocking_actions.lock().unwrap();
 
-                for action in non_blocking_actions.iter() {
+                for action in non_blocking_actions.iter_mut() {
                     match action {
-                        NonBlockingData::AddComponent(data) => {
+                        NonBlockingImplementationData::AddComponent(data) => {
                             // get the implementation
-                            let implementation =
+                            let implementation: Implementation =
                                 add_component_implementation(data.component.clone(), data.core);
 
                             // add the implementation to the list of done implementations
                             let mut done_implement = done_implement.lock().unwrap();
                             done_implement.insert(data.component_id, implementation);
                         }
-                        NonBlockingData::RemoveComponent(data) => {
-                            // do something
-                            // add the component to the list of done removes
+                        NonBlockingImplementationData::RemoveComponent(data) => {
+                            // remove the implementation
+                            remove_component_implementation(&mut data.implementation);
+
+                            // add the component id to the list of done removes
                             let mut done_remove = done_remove.lock().unwrap();
                             done_remove.push(data.component_id);
                         }
@@ -62,6 +79,8 @@ pub fn add_component_implementation(
     path: String,
     core: usize,
 ) -> crate::global_state::Implementation {
+    log::trace!("BACKGROUND: Adding component {}", path);
+
     // create control and data sockets
     let (mut control_socket, child_control_socket) = UnixStream::pair().unwrap();
     let (data_socket, child_data_socket) = UnixStream::pair().unwrap();
@@ -138,6 +157,8 @@ pub fn add_component_implementation(
         panic!("Failed to start component");
     }
 
+    log::trace!("BACKGROUND: Done adding component");
+
     // create the component implementation
     crate::global_state::Implementation {
         control_socket: crate::global_state::Socket {
@@ -160,7 +181,7 @@ pub fn add_component(
     state: &mut crate::global_state::GlobalState,
     action_status: &mut ActionState,
     sender: Sender<()>,
-    actions: Arc<Mutex<Vec<NonBlockingData>>>,
+    actions: Arc<Mutex<Vec<NonBlockingImplementationData>>>,
     done_implement: Arc<Mutex<HashMap<Uuid, Implementation>>>,
     data: elafry::types::configuration::AddComponentData,
 ) {
@@ -182,7 +203,11 @@ pub fn add_component(
             // try get a lock on the actions
             if let Ok(mut actions) = actions.try_lock() {
                 // push the action to the actions vector
-                actions.push(NonBlockingData::AddComponent(data));
+                actions.push(NonBlockingImplementationData::AddComponent(AddComponentImplementation {
+                    component_id: data.component_id,
+                    component: data.component,
+                    core: data.core,
+                }));
 
                 // send signal to background thread
                 sender.send(()).unwrap();
@@ -216,15 +241,45 @@ pub fn add_component(
     }
 }
 
-// pub fn remove_component_implementation() {
+pub fn remove_component_implementation(
+    implementation: &mut Implementation,
+) {
+    log::trace!("BACKGROUND: Removing component");
+    
+    // wake the component
+    implementation
+    .control_socket
+    .socket
+    .write_all(&[b'w', implementation.control_socket.count])
+    .unwrap();
 
-// }
+    implementation.control_socket.count += 1;
+    let mut buffer = [0; 1];
+    implementation
+        .control_socket
+        .socket
+        .read_exact(&mut buffer)
+        .unwrap();
+
+    // stop the component
+    implementation
+        .control_socket
+        .socket
+        .write_all(&[b'q', implementation.control_socket.count])
+        .unwrap();
+
+    // wait for the component to exit and kill
+    implementation.child.wait().unwrap();
+    implementation.child.kill().unwrap();
+
+    log::trace!("BACKGROUND: Done removing component");
+}
 
 pub fn remove_component(
     state: &mut crate::global_state::GlobalState,
     action_status: &mut ActionState,
-    _sender: Sender<()>,
-    _actions: Arc<Mutex<Vec<NonBlockingData>>>,
+    sender: Sender<()>,
+    actions: Arc<Mutex<Vec<NonBlockingImplementationData>>>,
     _done_remove: Arc<Mutex<Vec<Uuid>>>,
     data: elafry::types::configuration::RemoveComponentData,
 ) {
@@ -243,56 +298,44 @@ pub fn remove_component(
             *action_status = ActionState::Running;
         }
         ActionState::Running => {
-            // set the status to done
-            *action_status = ActionState::Stopped;
+            // try get a lock on the actions
+            if let Ok(mut actions) = actions.try_lock() {
+                // get the component from the state
+                let component = state.get_component_mut(data.component_id).unwrap();
+
+                // get the implementation from the component and set component implementation to None
+                let implementation = component.implentation.take();
+
+                // push the action to the actions vector
+                actions.push(NonBlockingImplementationData::RemoveComponent(RemoveComponentImplementation {
+                    component_id: data.component_id,
+                    implementation: implementation.unwrap(),
+                }));
+
+                // send signal to background thread
+                sender.send(()).unwrap();
+
+                // set the status to stopped
+                *action_status = ActionState::Stopped;
+            } else {
+                log::warn!("Failed to get lock on actions");
+            }
         }
         ActionState::Stopped => {
-            // get the component
-            match state.get_component_mut(data.component_id) {
-                Some(component) => {
-                    // stop the component
+            // try get a lock on the done_remove
+            if let Ok(mut done_remove) = _done_remove.try_lock() {
+                // get the uuid from the done_remove vector and remove it
+                if let Some(uuid) = done_remove.pop() {
+                    // remove the component implementation
+                    state.remove_component_implementation(uuid);
 
-                    match &mut component.implentation {
-                        Some(implentation) => {
-                            // wake the component
-                            implentation
-                                .control_socket
-                                .socket
-                                .write_all(&[b'w', implentation.control_socket.count])
-                                .unwrap();
-                            implentation.control_socket.count += 1;
-                            let mut buffer = [0; 1];
-                            implentation
-                                .control_socket
-                                .socket
-                                .read_exact(&mut buffer)
-                                .unwrap();
-
-                            // stop the component
-                            implentation
-                                .control_socket
-                                .socket
-                                .write_all(&[b'q', implentation.control_socket.count])
-                                .unwrap();
-
-                            // wait for the component to exit and kill
-                            implentation.child.wait().unwrap();
-                            implentation.child.kill().unwrap();
-
-                            // mark the component as not running
-                            state.remove_component_implementation(data.component_id);
-
-                            // set the status to completed
-                            *action_status = ActionState::Completed;
-                        }
-                        None => {
-                            panic!("Component not started {:?}", component.path);
-                        }
-                    }
+                    // set the status to done
+                    *action_status = ActionState::Completed;
+                } else {
+                    log::warn!("Component {} not done", data.component_id);
                 }
-                None => {
-                    panic!("Component {} not found", data.component_id)
-                }
+            } else {
+                log::warn!("Failed to get lock on done_remove");
             }
 
             *action_status = ActionState::Completed;

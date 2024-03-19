@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{mpsc, Arc, Mutex};
 
-use elafry::types::configuration::NonBlockingData;
 use uuid::Uuid;
 
 use crate::global_state::Implementation;
@@ -43,7 +42,7 @@ struct Background {
 
 #[derive(Clone)]
 struct BackgroundData {
-    actions: Arc<Mutex<Vec<NonBlockingData>>>,
+    actions: Arc<Mutex<Vec<background::NonBlockingImplementationData>>>,
     done_implement: Arc<Mutex<HashMap<Uuid, Implementation>>>,
     done_remove: Arc<Mutex<Vec<Uuid>>>,
 }
