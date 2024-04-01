@@ -72,10 +72,10 @@ impl CommunicationService {
                                 };
 
                                 // deserialize message
-                                let message: Message = match bincode::deserialize(&message_buf) {
-                                    Ok(message) => message,
-                                    Err(e) => {
-                                        log::error!("Failed to deserialize message; err = {:?}", e);
+                                let message: Message = match Message::decode(&message_buf) {
+                                    Some(message) => message,
+                                    None => {
+                                        log::error!("Failed to decode message");
                                         continue;
                                     }
                                 };
@@ -155,12 +155,16 @@ impl CommunicationService {
 
         // check for data on udp socket
         for _ in 0..state.total_components() * 10 {
-            let mut length_buf = [0; 4];
+            let mut udp_buf = [0; 1024];
 
-            match self.udp_socket.recv_from(&mut length_buf) {
+            match self.udp_socket.recv_from(&mut udp_buf) {
                 Ok((_, address)) => {
                     // get length of message
+                    let mut length_buf = [0; 4];
+                    length_buf.copy_from_slice(&udp_buf[0..4]);
                     let length = u32::from_be_bytes(length_buf);
+
+                    log::debug!("Received message from: {:?} and length: {}", address, length);
 
                     // don't read if length is 0
                     if length == 0 {
@@ -170,20 +174,15 @@ impl CommunicationService {
                     // create buffer with length
                     let message_buf = {
                         let mut buf = vec![0; length as usize];
-                        match self.udp_socket.recv_from(&mut buf) {
-                            Ok(_) => buf,
-                            Err(e) => {
-                                log::error!("Failed to read from socket; err = {:?}", e);
-                                continue;
-                            }
-                        }
+                        buf.copy_from_slice(&udp_buf[4..length as usize + 4]);
+                        buf
                     };
 
                     // deserialize message
-                    let message: Message = match bincode::deserialize(&message_buf) {
-                        Ok(message) => message,
-                        Err(e) => {
-                            log::error!("Failed to deserialize message; err = {:?}", e);
+                    let message: Message = match Message::decode(&message_buf) {
+                        Some(message) => message,
+                        None => {
+                            log::error!("Failed to decode message");
                             continue;
                         }
                     };
@@ -263,7 +262,7 @@ impl CommunicationService {
             };
 
             for message in messages.iter() {
-                let message_buf = bincode::serialize(&message).unwrap();
+                let message_buf = Message::encode(message);
 
                 let length = message_buf.len() as u32;
 
@@ -293,7 +292,7 @@ impl CommunicationService {
         // check for data to send to clear the exit address buffer
         for (address, messages) in self.address_exit_buffer.iter() {
             for message in messages.iter() {
-                let message_buf = bincode::serialize(&message).unwrap();
+                let message_buf = Message::encode(message);
 
                 let length = message_buf.len() as u32;
 

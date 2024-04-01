@@ -20,6 +20,15 @@ tasks:
             endpoint: !component-id a8b72b60-d420-4c9a-8211-3afb36a1af7a
             channel-id: 0
           target:
+            endpoint: !address 127.0.0.1:5000
+            channel-id: 0
+
+      - id: e03c7e3b-4705-4aae-825b-1b6131bb8ae2
+        data: !add-route
+          source:
+            endpoint: !address 127.0.0.1:5000
+            channel-id: 0
+          target:
             endpoint: !runner
             channel-id: 0
       
@@ -27,6 +36,15 @@ tasks:
         data: !add-route
           source:
             endpoint: !component-id a8b72b60-d420-4c9a-8211-3afb36a1af7a
+            channel-id: 1
+          target:
+            endpoint: !address 127.0.0.1:5000
+            channel-id: 1
+
+      - id: 30b97ba7-2a69-4a48-a631-4a0c8986209c
+        data: !add-route
+          source:
+            endpoint: !address 127.0.0.1:5000
             channel-id: 1
           target:
             endpoint: !runner

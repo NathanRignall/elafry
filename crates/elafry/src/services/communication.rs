@@ -44,10 +44,10 @@ impl Manager {
                     stream.read_exact(&mut message_buf).unwrap();
 
                     // deserialize message
-                    let message: Message = match bincode::deserialize(&message_buf) {
-                        Ok(message) => message,
-                        Err(e) => {
-                            println!("Failed to deserialize message; err = {:?}", e);
+                    let message: Message = match Message::decode(&message_buf) {
+                        Some(message) => message,
+                        None => {
+                            log::error!("Failed to decode message");
                             continue;
                         }
                     };
@@ -107,11 +107,11 @@ impl Manager {
             channel_id,
             data,
             count: self.send_count,
-            timestamp
+            // timestamp
         };
 
         // serialize message
-        let message_buf = bincode::serialize(&message).unwrap();
+        let message_buf = Message::encode(&message);
         let length = message_buf.len() as u32;
         let mut length_buf = length.to_be_bytes().to_vec();
         length_buf.append(&mut message_buf.clone());
