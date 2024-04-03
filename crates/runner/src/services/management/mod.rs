@@ -299,6 +299,7 @@ impl ManagementService {
                                 .into_iter()
                                 .map(|frame| MinorFrame {
                                     component_id: frame.component_id,
+                                    deadline: std::time::Duration::from_micros(frame.deadline),
                                 })
                                 .collect(),
                         })

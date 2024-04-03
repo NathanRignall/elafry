@@ -10,13 +10,13 @@ pub struct Component {
     pub core: usize,
     pub implentation: Option<Implementation>,
     pub times: Vec<u64>,
-}
+    }
 
 pub struct Implementation {
-    pub control_socket: Socket,
     pub data_socket: Socket,
     pub state_socket: Socket,
     pub child: std::process::Child,
+    pub child_pid: libc::pid_t,
 }
 
 pub struct Socket {

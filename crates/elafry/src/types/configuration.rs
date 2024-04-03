@@ -125,4 +125,5 @@ pub struct MajorFrame {
 pub struct MinorFrame {
     #[serde(rename = "component-id")]
     pub component_id: uuid::Uuid,
+    pub deadline: u64,
 }

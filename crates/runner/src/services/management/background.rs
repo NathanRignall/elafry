@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{Read, Write};
+// use std::io::{Read};
 use std::os::fd::{FromRawFd, IntoRawFd, OwnedFd};
 use std::os::unix::net::UnixStream;
 use std::process::{Command, Stdio};
@@ -82,14 +82,12 @@ pub fn add_component_implementation(
     log::trace!("BACKGROUND: Adding component {}", path);
 
     // create control and data sockets
-    let (mut control_socket, child_control_socket) = UnixStream::pair().unwrap();
     let (data_socket, child_data_socket) = UnixStream::pair().unwrap();
     let (state_socket, child_state_socket) = UnixStream::pair().unwrap();
     data_socket.set_nonblocking(true).unwrap();
     state_socket.set_nonblocking(true).unwrap();
 
     // create fds for the child process
-    let child_control_socket_fd = child_control_socket.into_raw_fd();
     let child_data_socket_fd = child_data_socket.into_raw_fd();
     let child_state_socket_fd = child_state_socket.into_raw_fd();
 
@@ -98,10 +96,6 @@ pub fn add_component_implementation(
     let mut command = Command::new(binary_path);
     command
         .fd_mappings(vec![
-            FdMapping {
-                child_fd: 10,
-                parent_fd: unsafe { OwnedFd::from_raw_fd(child_control_socket_fd) },
-            },
             FdMapping {
                 child_fd: 11,
                 parent_fd: unsafe { OwnedFd::from_raw_fd(child_data_socket_fd) },
@@ -120,7 +114,6 @@ pub fn add_component_implementation(
         .unwrap();
 
     // stop socket from being closed when it goes out of scope
-    let _ = unsafe { UnixStream::from_raw_fd(child_control_socket_fd) };
     let _ = unsafe { UnixStream::from_raw_fd(child_data_socket_fd) };
     let _ = unsafe { UnixStream::from_raw_fd(child_state_socket_fd) };
 
@@ -151,20 +144,14 @@ pub fn add_component_implementation(
     }
 
     // wait for the component to be ready
-    let mut buffer = [0; 1];
-    control_socket.read_exact(&mut buffer).unwrap();
-    if buffer[0] != b'k' {
-        panic!("Failed to start component");
-    }
+    std::thread::sleep(std::time::Duration::from_micros(100));
 
     log::trace!("BACKGROUND: Done adding component");
 
+    let pid = child.id() as libc::pid_t;
+
     // create the component implementation
     crate::global_state::Implementation {
-        control_socket: crate::global_state::Socket {
-            socket: control_socket,
-            count: 0,
-        },
         data_socket: crate::global_state::Socket {
             socket: data_socket,
             count: 0,
@@ -174,6 +161,7 @@ pub fn add_component_implementation(
             count: 0,
         },
         child,
+        child_pid: pid,
     }
 }
 
@@ -246,30 +234,7 @@ pub fn remove_component_implementation(
 ) {
     log::trace!("BACKGROUND: Removing component");
     
-    // wake the component
-    implementation
-    .control_socket
-    .socket
-    .write_all(&[b'w', implementation.control_socket.count])
-    .unwrap();
-
-    implementation.control_socket.count += 1;
-    let mut buffer = [0; 1];
-    implementation
-        .control_socket
-        .socket
-        .read_exact(&mut buffer)
-        .unwrap();
-
-    // stop the component
-    implementation
-        .control_socket
-        .socket
-        .write_all(&[b'q', implementation.control_socket.count])
-        .unwrap();
-
-    // wait for the component to exit and kill
-    implementation.child.wait().unwrap();
+    // send signal to child process to stop
     implementation.child.kill().unwrap();
 
     log::trace!("BACKGROUND: Done removing component");

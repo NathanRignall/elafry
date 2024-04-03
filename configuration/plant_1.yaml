@@ -47,9 +47,12 @@ tasks:
 
       - id: 286855f8-752e-4116-9703-ec6ad9d84fb1
         data: !set-schedule
-          frequency: 500
+          frequency: 1000
           major-frames:
             - minor-frames:
                 - component-id: a8b72b60-d420-4c9a-8211-3afb36a1af7a
+                  deadline: 50
                 - component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
+                  deadline: 150
                 - component-id: 4d2f439b-ae60-42b6-ae45-b4db5d020f21
+                  deadline: 50
