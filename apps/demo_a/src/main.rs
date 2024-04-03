@@ -31,12 +31,11 @@ impl elafry::Component for DemoA {
                     if new_b_state != self.state.b {
                         self.state.b = new_b_state;
                     }
-
                 }
                 None => break,
             }
 
-            services.communication.send_message(2, vec![self.state.a, self.state.b]);
+            services.communication.send_message(2, vec![self.state.a, 0]);
         }
     }
 
