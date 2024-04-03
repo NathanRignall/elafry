@@ -141,7 +141,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo"
+name = "demo_a"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "csv",
+ "elafry",
+ "log",
+ "serde",
+]
+
+[[package]]
+name = "demo_b"
 version = "0.1.0"
 dependencies = [
  "bincode",

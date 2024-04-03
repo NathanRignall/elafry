@@ -12,18 +12,19 @@ impl elafry::Component for DemoB {
     fn run(&mut self, services: &mut elafry::Services) {
         // do stuff with messages
         loop {
-            let message = services.communication.get_message(2);
+            let message = services.communication.get_message(1);
             match message {
                 Some(message) => {
                     let new_state = message.data[0];
 
                     if new_state != self.state {
                         self.state = new_state;
-                        services.communication.send_message(2, vec![self.state, 2]);
                     }
                 }
                 None => break,
             }
+
+            services.communication.send_message(2, vec![self.state, 2]);
         }
     }
 
