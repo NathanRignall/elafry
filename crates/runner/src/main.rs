@@ -36,7 +36,7 @@ fn main() {
     let mut communication_service = CommunicationService::new();
     let mut management_service = ManagementService::new("default.yaml".to_string());
     let mut scheduler_service = SchedulerService::new();
-    let state_service = StateService::new();
+    let mut state_service = StateService::new();
 
     // frame index
     let period = std::time::Duration::from_micros(1_000_000 / 2000 as u64);
