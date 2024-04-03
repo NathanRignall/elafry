@@ -3,8 +3,10 @@ pub mod types;
 
 pub trait Component {
     fn new() -> Self;
-    fn init(&mut self, services: &mut Services);
     fn run(&mut self, services: &mut Services);
+    fn load_state(&mut self, data: Vec<u8>);
+    fn save_state(&self) -> Vec<u8>;
+    fn reset_state(&mut self);
 }
 
 pub struct Services {
@@ -48,7 +50,10 @@ pub fn run<T: Component + 'static>(mut component: T) {
     };
 
     // initialize the component
-    component.init(&mut services);
+    component.reset_state();
+
+    // save the initial state
+    services.state.set_data(component.save_state());
 
     // acknowledge component init
     child_control_socket
@@ -110,8 +115,16 @@ pub fn run<T: Component + 'static>(mut component: T) {
                 break;
             }
             b'r' => {
-                services.communication.receive();
+                // run the services
+                services.state.run();
+                services.communication.run();
+
+                // run the component
+                component.load_state(services.state.get_data());
                 component.run(&mut services);
+                services.state.set_data(component.save_state());
+
+                // acknowledge component run
                 child_control_socket
                     .write_all(&[b'k'])
                     .expect("Failed to write to socket");
