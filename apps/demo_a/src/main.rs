@@ -27,15 +27,15 @@ impl elafry::Component for DemoA {
 
                     if new_a_state != self.state.a {
                         self.state.a = new_a_state;
+                        services.communication.send_message(2, vec![self.state.a, 0]);
                     }
+
                     if new_b_state != self.state.b {
                         self.state.b = new_b_state;
                     }
                 }
                 None => break,
             }
-
-            services.communication.send_message(2, vec![self.state.a, 0]);
         }
     }
 
