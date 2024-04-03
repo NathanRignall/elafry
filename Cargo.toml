@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "apps/fcs_a", "apps/fcs_b", "apps/plant", "apps/agent",
+    "apps/fcs_a", "apps/fcs_b", "apps/plant", "apps/agent", "apps/demo",
     "crates/cli", "crates/elafry", "crates/runner",
 ]
 

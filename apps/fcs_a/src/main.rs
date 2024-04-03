@@ -97,7 +97,6 @@ impl elafry::Component for FcsA {
 
                     self.state.position = sensor_data.position;
                     self.state.pid_controller.set_setpoint(sensor_data.setpoint);
-                    self.state.org_timestamp = message.timestamp;
                 }
                 None => break,
             }

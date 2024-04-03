@@ -4,17 +4,8 @@ tasks:
       - id: 0bab7599-4dad-455f-adec-d30663db087d
         data: !add-component
           component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
-          component: plant
+          component: demo
           core: 2
-          version: 1.0.0
-
-  - id: 8807e0f6-b348-4f60-b45a-ca200e0f2498
-    actions: !non-blocking
-      - id: 3c52ef52-e201-4aad-a91b-dfce789e4113
-        data: !add-component
-          component-id: 4d2f439b-ae60-42b6-ae45-b4db5d020f21
-          component: fcs_a
-          core: 3
           version: 1.0.0
 
   - id: 8327c2a1-0dbb-425e-aece-897c28c3f9b2
@@ -23,26 +14,22 @@ tasks:
         data: !start-component
           component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
 
-      - id: bc4abf66-d2d4-4d6f-bf1f-5260bb9f318b
-        data: !start-component
-          component-id: 4d2f439b-ae60-42b6-ae45-b4db5d020f21
-
       - id: 4e682edb-22f1-42bd-995b-6282f114688e
         data: !add-route
           source:
-            endpoint: !component-id 9a069153-c335-47c5-a653-dec6c0e7c280
+            endpoint: !address 192.168.2.3:5000
             channel-id: 1
           target:
-            endpoint: !component-id 4d2f439b-ae60-42b6-ae45-b4db5d020f21
+            endpoint: !component-id 9a069153-c335-47c5-a653-dec6c0e7c280
             channel-id: 1
 
-      - id: f6879e8a-a42a-49d2-8482-7827408a7775
+      - id: be2e5ba2-5427-403f-a907-f017b57c2e5d
         data: !add-route
           source:
-            endpoint: !component-id 4d2f439b-ae60-42b6-ae45-b4db5d020f21
+            endpoint: !component-id 9a069153-c335-47c5-a653-dec6c0e7c280
             channel-id: 2
           target:
-            endpoint: !component-id 9a069153-c335-47c5-a653-dec6c0e7c280
+            endpoint: !address 192.168.2.3:5000
             channel-id: 2
 
       - id: 286855f8-752e-4116-9703-ec6ad9d84fb1
@@ -52,4 +39,3 @@ tasks:
             - minor-frames:
                 - component-id: a8b72b60-d420-4c9a-8211-3afb36a1af7a
                 - component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
-                - component-id: 4d2f439b-ae60-42b6-ae45-b4db5d020f21
