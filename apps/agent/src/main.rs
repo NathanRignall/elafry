@@ -45,7 +45,7 @@ impl elafry::Component for Agent {
         }
 
         // when loop_count is 5, send a message
-        if self.loop_count == 5 && self.plant {
+        if self.loop_count == 5 && !self.plant {
             log::info!("-----Demo Configuration 1-----");
             let control_data_buf = "demo_1.yaml".as_bytes().to_vec();
             services.communication.send_message(1, control_data_buf);
