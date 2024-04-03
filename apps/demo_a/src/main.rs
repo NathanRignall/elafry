@@ -1,12 +1,19 @@
 use elafry::Component;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+struct State {
+    a: u8,
+    b: u8,
+}
 
 struct DemoA {
-    state: u8,
+    state: State,
 }
 
 impl elafry::Component for DemoA {
     fn new() -> Self {
-        DemoA { state: 0 }
+        DemoA { state: State { a: 0, b: 0 } }
     }
 
     fn run(&mut self, services: &mut elafry::Services) {
@@ -15,16 +22,21 @@ impl elafry::Component for DemoA {
             let message = services.communication.get_message(1);
             match message {
                 Some(message) => {
-                    let new_state = message.data[0];
+                    let new_a_state = message.data[0];
+                    let new_b_state = message.data[1];
 
-                    if new_state != self.state {
-                        self.state = new_state;
+                    if new_a_state != self.state.a {
+                        self.state.a = new_a_state;
                     }
+                    if new_b_state != self.state.b {
+                        self.state.b = new_b_state;
+                    }
+
                 }
                 None => break,
             }
 
-            services.communication.send_message(2, vec![self.state, 0]);
+            services.communication.send_message(2, vec![self.state.a, self.state.b]);
         }
     }
 
@@ -37,7 +49,7 @@ impl elafry::Component for DemoA {
     }
 
     fn reset_state(&mut self) {
-        self.state = 0;
+        self.state = State { a: 0, b: 0 };
     }
 }
 
