@@ -4,6 +4,7 @@ pub struct Manager {
     stream: UnixStream,
     send_count: u8,
     receive_count: u8,
+    data: Vec<u8>,
 }
 
 impl Manager {
@@ -12,16 +13,19 @@ impl Manager {
             stream,
             send_count: 0,
             receive_count: 0,
+            data: vec![],
         }
     }
 
-    pub fn save_state(&mut self, _: Vec<u8>) {
-        println!("Saving state");
-        println!("{:?} {} {}", self.stream, self.send_count, self.receive_count);
+    pub fn run(&self) {
+        // println!("Running state manager");
     }
 
-    pub fn load_state(&mut self) -> Vec<u8> {
-        println!("Loading state");
-        vec![]
+    pub fn get_data(&self) -> Vec<u8> {
+        self.data.clone()
+    }
+
+    pub fn set_data(&mut self, data: Vec<u8>) {
+        self.data = data;
     }
 }

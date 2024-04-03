@@ -21,7 +21,7 @@ impl Manager {
         }
     }
 
-    pub fn receive(&mut self) {
+    pub fn run(&mut self) {
         let mut stream = &self.stream;
         let mut length_buf = [0; 4];
 

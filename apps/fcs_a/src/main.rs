@@ -13,6 +13,7 @@ pub struct ControlData {
     org_timestamp: u64,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct PIDController {
     kp: f64, // Proportional gain
     ki: f64, // Integral gain
@@ -56,36 +57,28 @@ impl PIDController {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct State {
     position: f64,
     thrust: f64,
     org_timestamp: u64,
+    pid_controller: PIDController,
 }
 
 struct FcsA {
-    send_message_count: u32,
-    receive_message_count: u32,
     state: State,
-    pid_controller: PIDController,
 }
 
 impl elafry::Component for FcsA {
     fn new() -> FcsA {
         FcsA {
-            send_message_count: 0,
-            receive_message_count: 0,
             state: State {
                 position: 0.0,
                 thrust: 0.0,
                 org_timestamp: 0,
+                pid_controller: PIDController::new(2.5, 0.0001,50.0, 25.0, 0.0)
             },
-            pid_controller: PIDController::new(2.5, 0.0001,50.0, 25.0, 0.0)
         }
-    }
-
-    fn init(&mut self, _services: &mut elafry::Services) {
-        self.receive_message_count = 0;
-        self.send_message_count = 0;
     }
 
     fn run(&mut self, services: &mut elafry::Services) {
@@ -94,8 +87,6 @@ impl elafry::Component for FcsA {
             let message = services.communication.get_message(1);
             match message {
                 Some(message) => {
-                    self.receive_message_count += 1;
-
                     let sensor_data: SensorData = match bincode::deserialize(&message.data) {
                         Ok(sensor_data) => sensor_data,
                         Err(e) => {
@@ -105,24 +96,39 @@ impl elafry::Component for FcsA {
                     };
 
                     self.state.position = sensor_data.position;
-                    self.pid_controller.set_setpoint(sensor_data.setpoint);
-                    // self.state.org_timestamp = message.timestamp;
+                    self.state.pid_controller.set_setpoint(sensor_data.setpoint);
                 }
                 None => break,
             }
         }
 
         // do stuff
-        self.state.thrust = self.pid_controller.compute(self.state.position).max(0.0).min(100.0);
+        self.state.thrust = self.state.pid_controller.compute(self.state.position).max(0.0).min(100.0);
 
         // send message
-        self.send_message_count += 1;
         let control_data = ControlData {
             thrust: self.state.thrust,
             org_timestamp: self.state.org_timestamp,
         };
         let control_data_buf = bincode::serialize(&control_data).unwrap();
         services.communication.send_message(2, control_data_buf);
+    }
+
+    fn save_state(&self) -> Vec<u8> {
+        bincode::serialize(&self.state).unwrap()
+    }
+
+    fn load_state(&mut self, data: Vec<u8>) {
+        self.state = bincode::deserialize(&data).unwrap();
+    }
+
+    fn reset_state(&mut self) {
+        self.state = State {
+            position: 0.0,
+            thrust: 0.0,
+            org_timestamp: 0,
+            pid_controller: PIDController::new(2.5, 0.0001,50.0, 25.0, 0.0)
+        };
     }
 }
 

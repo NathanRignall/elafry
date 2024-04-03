@@ -11,10 +11,6 @@ impl elafry::Component for Agent {
         }
     }
 
-    fn init(&mut self, _services: &mut elafry::Services) {
-        self.loop_count = 0;
-    }
-
     fn run(&mut self, services: &mut elafry::Services) {
         self.loop_count += 1;
 
@@ -45,6 +41,18 @@ impl elafry::Component for Agent {
         //     let control_data_buf = "kill".as_bytes().to_vec();
         //     services.communication.send_message(0, control_data_buf);
         // }
+    }
+
+    fn save_state(&self) -> Vec<u8> {
+        bincode::serialize(&self.loop_count).unwrap()
+    }
+
+    fn load_state(&mut self, data: Vec<u8>) {
+        self.loop_count = bincode::deserialize(&data).unwrap();
+    }
+
+    fn reset_state(&mut self) {
+        self.loop_count = 0;
     }
 }
 

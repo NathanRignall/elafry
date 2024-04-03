@@ -14,21 +14,17 @@ pub struct ControlData {
 }
 
 struct PlantModel {
-    position: f64,
-    velocity: f64,
     last_update: std::time::Instant,
 }
 
 impl PlantModel {
     fn new() -> PlantModel {
         PlantModel {
-            position: 0.0,
-            velocity: 0.0,
             last_update: std::time::Instant::now(),
         }
     }
 
-    fn update(&mut self, thrust: f64) {
+    fn update(&mut self, position: &mut f64, velocity: &mut f64, thrust: f64) {
         // calculate dt
         let now = std::time::Instant::now();
         let dt = now.duration_since(self.last_update).as_secs_f64();
@@ -37,69 +33,55 @@ impl PlantModel {
         let gravity = 9.81;
         let mass = 1.0;
         let acceleration = thrust / mass - gravity;
-        self.velocity += acceleration * dt;
-        self.position += self.velocity * dt;
+        *velocity += acceleration * dt;
+        *position += *velocity * dt;
 
         // if position is below 0, set to 0 and set velocity to 0
-        if self.position < 0.0 {
-            self.position = 0.0;
-            self.velocity = 0.0;
+        if *position < 0.0 {
+            *position = 0.0;
+            *velocity = 0.0;
         }
-    }
-
-    fn get_position(&self) -> f64 {
-        self.position
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct State {
     thrust: f64,
     setpoint: f64,
     state_count: u32,
+    position: f64,
+    velocity: f64,
 }
 
 struct Plant {
-    send_message_count: u32,
-    receive_message_count: u32,
+    writer: csv::Writer<std::fs::File>,
+    last_timestamp: u64,
     state: State,
     plant_model: PlantModel,
-    writer: csv::Writer<std::fs::File>,
-    loop_count: u32,
-    last_timestamp: u64,
 }
 
 impl elafry::Component for Plant {
     fn new() -> Self {
         Plant {
-            send_message_count: 0,
-            receive_message_count: 0,
             state: State {
                 thrust: 0.0,
                 setpoint: 0.0,
                 state_count: 0,
+                position: 0.0,
+                velocity: 0.0,
             },
             plant_model: PlantModel::new(),
             writer: csv::Writer::from_path("plant.csv").unwrap(),
-            loop_count: 0,
             last_timestamp: 0,
         }
     }
 
-    fn init(&mut self, _services: &mut elafry::Services) {
-        self.send_message_count = 0;
-        self.receive_message_count = 0;
-    }
-
     fn run(&mut self, services: &mut elafry::Services) {
-        self.loop_count += 1;
-
         // do stuff with messages
         loop {
             let message = services.communication.get_message(2);
             match message {
                 Some(message) => {
-                    self.receive_message_count += 1;
-
                     let control_data: ControlData = match bincode::deserialize(&message.data) {
                         Ok(control_data) => control_data,
                         Err(e) => {
@@ -117,7 +99,7 @@ impl elafry::Component for Plant {
 
         // do stuff
         self.state.state_count += 1;
-        self.plant_model.update(self.state.thrust);
+        self.plant_model.update(&mut self.state.position, &mut self.state.velocity, self.state.thrust);
 
         // at 200, set setpoint to 50
         if self.state.state_count == 200 {
@@ -146,11 +128,10 @@ impl elafry::Component for Plant {
 
         // form sensor data
         let sensor_data = SensorData {
-            position: self.plant_model.get_position(),
+            position: self.state.position,
             setpoint: self.state.setpoint,
         };
 
-        self.send_message_count += 1;
         let sensor_data_buf = bincode::serialize(&sensor_data).unwrap();
         services.communication.send_message(1, sensor_data_buf);
 
@@ -168,7 +149,30 @@ impl elafry::Component for Plant {
                 self.state.setpoint,
             ))
             .unwrap();
+    }
+
+    fn save_state(&self) -> Vec<u8> {
+        bincode::serialize(&self.state).unwrap()
+    }
+
+    fn load_state(&mut self, data: Vec<u8>) {
+        // try to deserialize the data and print an error if it fails
+        match bincode::deserialize(&data) {
+            Ok(state) => self.state = state,
+            Err(e) => log::error!("Failed to deserialize state; err = {:?}", e),
         }
+    }
+
+    fn reset_state(&mut self) {
+        self.state = State {
+            thrust: 0.0,
+            setpoint: 0.0,
+            state_count: 0,
+            position: 0.0,
+            velocity: 0.0,
+        };
+    }
+
 }
 
 fn main() {
