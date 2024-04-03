@@ -24,7 +24,7 @@ impl elafry::Component for DemoB {
                 None => break,
             }
 
-            services.communication.send_message(2, vec![self.state, 2]);
+            services.communication.send_message(2, vec![self.state, 1]);
         }
     }
 
