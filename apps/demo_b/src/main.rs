@@ -36,6 +36,14 @@ impl elafry::Component for DemoB {
                 None => break,
             }
 
+            let new_state_a = {
+                if self.state.a == 0 {
+                    1
+                } else {
+                    0
+                }
+            };
+
             let new_state_b = {
                 if self.state.b == 0 {
                     1
@@ -44,7 +52,7 @@ impl elafry::Component for DemoB {
                 }
             };
 
-            services.communication.send_message(2, vec![self.state.a, new_state_b]);
+            services.communication.send_message(2, vec![new_state_a, new_state_b]);
         }
     }
 
