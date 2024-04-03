@@ -1,12 +1,12 @@
 use elafry::Component;
 
-struct Demo {
+struct DemoB {
     state: u8,
 }
 
-impl elafry::Component for Demo {
+impl elafry::Component for DemoB {
     fn new() -> Self {
-        Demo { state: 0 }
+        DemoB { state: 0 }
     }
 
     fn run(&mut self, services: &mut elafry::Services) {
@@ -19,7 +19,7 @@ impl elafry::Component for Demo {
 
                     if new_state != self.state {
                         self.state = new_state;
-                        services.communication.send_message(2, vec![self.state]);
+                        services.communication.send_message(2, vec![self.state, 2]);
                     }
                 }
                 None => break,
@@ -41,5 +41,5 @@ impl elafry::Component for Demo {
 }
 
 fn main() {
-    elafry::run(Demo::new());
+    elafry::run(DemoB::new());
 }

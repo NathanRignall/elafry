@@ -1,0 +1,57 @@
+tasks:
+  - id: 9f32b025-e820-4e42-9c3c-fb6cc1c282cd
+    actions: !non-blocking
+      - id: fee6e325-d445-4413-b3fc-ffc0681bded4
+        data: !add-component
+          component-id: 1f9c6264-5487-41c8-9b4a-e92d2edb2b31
+          component: demo_b
+          core: 3
+          version: 1.0.0
+
+  - id: ed22dd00-ca92-4c94-831f-4460c6aca606
+    actions: !blocking
+      - id: ae0c002a-9f14-4540-8b54-b4e7d2720c78
+        data: !stop-component
+          component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
+
+      - id: 38660959-1b02-4b14-8f11-eeba5447e55e
+        data: !remove-route
+          source:
+            endpoint: !address 172.31.0.101:5000
+            channel-id: 1
+
+      - id: 1be2e85a-7d65-49ea-8ad8-a8d0a2cd5ebe
+        data: !remove-route
+          source:
+            endpoint: !component-id 9a069153-c335-47c5-a653-dec6c0e7c280
+            channel-id: 2
+
+      - id: 2308c934-60f7-42db-8abd-eb005935505c
+        data: !start-component
+          component-id: 1f9c6264-5487-41c8-9b4a-e92d2edb2b31
+
+      - id: 7cdd2d09-76f8-464d-92ad-307d18e71cd7
+        data: !add-route
+          source:
+            endpoint: !address 172.31.0.101:5000
+            channel-id: 1
+          target:
+            endpoint: !component-id 1f9c6264-5487-41c8-9b4a-e92d2edb2b31
+            channel-id: 1
+
+      - id: 20370cb6-5461-4169-8eec-bd51d0cbc8a3
+        data: !add-route
+          source:
+            endpoint: !component-id 1f9c6264-5487-41c8-9b4a-e92d2edb2b31
+            channel-id: 2
+          target:
+            endpoint: !address 172.31.0.102:5000
+            channel-id: 2
+
+      - id: b458f416-3446-4d5c-8320-52565e112df8
+        data: !set-schedule
+          frequency: 500
+          major-frames:
+            - minor-frames:
+                - component-id: a8b72b60-d420-4c9a-8211-3afb36a1af7a
+                - component-id: 1f9c6264-5487-41c8-9b4a-e92d2edb2b31

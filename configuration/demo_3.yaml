@@ -1,0 +1,41 @@
+tasks:
+  - id: d8d4c6dc-32cf-47e3-b8b0-ace3731851cd
+    actions: !blocking
+      - id: 418738aa-4a0d-4f35-991e-3fa2c2653205
+        data: !stop-component
+          component-id: 1f9c6264-5487-41c8-9b4a-e92d2edb2b31
+
+      - id: 7cdd2d09-76f8-464d-92ad-307d18e71cd7
+        data: !remove-route
+          source:
+            endpoint: !address 172.31.0.101:5000
+            channel-id: 1
+          target:
+            endpoint: !component-id 1f9c6264-5487-41c8-9b4a-e92d2edb2b31
+            channel-id: 1
+
+      - id: 0460f12b-e038-4ed8-8226-cf4ff778e1b0
+        data: !remove-route
+          source:
+            endpoint: !component-id 1f9c6264-5487-41c8-9b4a-e92d2edb2b31
+            channel-id: 2
+          target:
+            endpoint: !address 172.31.0.102:5000
+            channel-id: 2
+
+      - id: 79ea32bc-b207-41fe-9b24-119474c91734
+        data: !set-schedule
+          frequency: 500
+          major-frames:
+            - minor-frames:
+                - component-id: a8b72b60-d420-4c9a-8211-3afb36a1af7a
+
+  - id: 57cbf011-feb9-484a-8648-d62937583f86
+    actions: !non-blocking
+      - id: 241c9976-8b41-4f73-a3d2-3c25a8c20a7a
+        data: !remove-component
+          component-id: 1f9c6264-5487-41c8-9b4a-e92d2edb2b31
+
+      - id: e5ccde68-5418-4865-84cb-e69fc849268b
+        data: !remove-component
+          component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
