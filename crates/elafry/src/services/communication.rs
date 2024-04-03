@@ -96,18 +96,11 @@ impl Manager {
     pub fn send_message(&mut self, channel_id: u32, data: Vec<u8>) {
         let mut stream = &self.stream;
 
-        // get timestamp
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_micros() as u64;
-
         // form message
         let message = Message {
             channel_id,
             data,
             count: self.send_count,
-            // timestamp
         };
 
         // serialize message

@@ -17,7 +17,7 @@ tasks:
       - id: 4e682edb-22f1-42bd-995b-6282f114688e
         data: !add-route
           source:
-            endpoint: !address 192.168.2.3:5000
+            endpoint: !address 172.31.0.101:5000
             channel-id: 1
           target:
             endpoint: !component-id 9a069153-c335-47c5-a653-dec6c0e7c280
@@ -29,7 +29,7 @@ tasks:
             endpoint: !component-id 9a069153-c335-47c5-a653-dec6c0e7c280
             channel-id: 2
           target:
-            endpoint: !address 192.168.2.3:5000
+            endpoint: !address 172.31.0.102:5000
             channel-id: 2
 
       - id: 286855f8-752e-4116-9703-ec6ad9d84fb1

@@ -133,7 +133,8 @@ impl ManagementService {
                 log::debug!("State Loading");
 
                 // read the configuration file
-                let file = std::fs::File::open(configuration).unwrap();
+                let path = format!("configuration/{}", configuration);
+                let file = std::fs::File::open(path).unwrap();
                 let configuration: Result<
                     elafry::types::configuration::Configuration,
                     serde_yaml::Error,
