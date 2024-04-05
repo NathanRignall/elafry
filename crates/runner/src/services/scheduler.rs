@@ -1,5 +1,3 @@
-use std::io::{Read, Write};
-
 pub struct Schedule {
     pub period: std::time::Duration,
     pub major_frames: Vec<MajorFrame>,

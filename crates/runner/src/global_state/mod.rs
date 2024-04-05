@@ -62,8 +62,7 @@ impl GlobalState {
             Some(component) => {
                 // don't start if not finish initializing
                 if component.implentation.is_none() {
-                    log::error!("Component {} not initialized", id);
-                    return;
+                    panic!("Component {} not initialized", id);
                 }
 
                 // start the component
@@ -165,9 +164,6 @@ impl GlobalState {
                 panic!("Component {} not found", id)
             }
         }
-
-        // remove the component
-        self.components.remove(&id);
     }
 
     pub fn get_component(&self, id: uuid::Uuid) -> Option<&Component> {
@@ -178,52 +174,9 @@ impl GlobalState {
         self.components.get_mut(&id)
     }
 
-    // pub fn get_component_iter(&self) -> impl Iterator<Item = (&uuid::Uuid, &Component)> {
-    //     self.components.iter()
-    // }
-
-    // pub fn get_component_iter_mut(&mut self) -> impl Iterator<Item = (&uuid::Uuid, &mut Component)> {
-    //     self.components.iter_mut()
-    // }
-
     pub fn total_components(&self) -> usize {
         self.components.len()
     }
-
-    // pub fn get_route(&self, source: RouteEndpoint) -> Option<&RouteEndpoint> {
-    //     self.routes.get(&source)
-    // }
-
-    // pub fn get_route_destination(&self, source: RouteEndpoint) -> Option<RouteEndpoint> {
-    //     self.routes.get(&source).cloned()
-    // }
-
-    // pub fn get_route_mut(&mut self, source: RouteEndpoint) -> Option<&mut RouteEndpoint> {
-    //     self.routes.get_mut(&source)
-    // }
-
-    // pub fn get_route_iter(&self) -> impl Iterator<Item = (&RouteEndpoint, &RouteEndpoint)> {
-    //     self.routes.iter()
-    // }
-
-    // pub fn get_route_iter_mut(&mut self) -> impl Iterator<Item = (&RouteEndpoint, &mut RouteEndpoint)> {
-    //     self.routes.iter_mut()
-    // }
-
-    // pub fn total_routes(&self) -> usize {
-    //     self.routes.len()
-    // }
-
-    // pub fn get_component_in_minor_frame(&mut self, index: usize) -> impl Iterator<Item = &mut Component> {
-    //     let mut components = vec![];
-    //     for frame in &self.schedule.major_frames[index].minor_frames {
-    //         if let Some(component) = self.components.get_mut(&frame.component_id) {
-    //             components.push(component);
-    //         }
-    //     }
-
-    //     components.into_iter()
-    // }
 
     pub fn set_schedule(&mut self, schedule: Schedule) {
         log::debug!("Setting schedule");
@@ -234,13 +187,11 @@ impl GlobalState {
                 match self.get_component(minor_frame.component_id) {
                     Some(component) => {
                         if component.implentation.is_none() {
-                            log::error!("Component {} not initialized", minor_frame.component_id);
-                            return;
+                            panic!("Component {} not initialized", minor_frame.component_id);
                         }
                     }
                     None => {
-                        log::error!("Component {} not found", minor_frame.component_id);
-                        return;
+                        panic!("Component {} not found", minor_frame.component_id);
                     }
                 }
             }
@@ -261,10 +212,305 @@ impl GlobalState {
             return None;
         }
     }
+}
 
-    // pub fn add_message(&mut self, message: Message) {
-    //     let channel_id = message.channel_id;
-    //     let messages = self.messages.entry(channel_id).or_insert(vec![]);
-    //     messages.push(message);
-    // }
+#[cfg(test)]
+mod tests {
+    use crate::services::{communication::Endpoint, scheduler::{MajorFrame, MinorFrame}};
+
+    use super::*;
+
+    #[test] 
+    fn test_global_state_component() {
+        let mut state = GlobalState::new();
+
+        let id = uuid::Uuid::new_v4();
+        let path = "path".to_string();
+        let core = 0;
+        let implementation = Implementation {
+            data_socket: Socket {
+                socket: UnixStream::pair().unwrap().0,
+                count: 0,
+            },
+            state_socket: Socket {
+                socket: UnixStream::pair().unwrap().0,
+                count: 0,
+            },
+            child: std::process::Command::new("ls").spawn().unwrap(),
+            child_pid: 0,
+        };
+
+        state.add_component(id, path.clone(), core);
+        assert_eq!(state.total_components(), 1);
+        assert_eq!(state.get_component(id).unwrap().path, path);
+        assert_eq!(state.get_component(id).unwrap().core, core);
+        assert_eq!(state.get_component(id).unwrap().implentation.is_none(), true); 
+
+        state.get_component_mut(id).unwrap().times.push(1);
+        assert_eq!(state.get_component(id).unwrap().times.len(), 1);
+
+        state.add_component_implementation(id, implementation);
+        assert_eq!(state.get_component(id).unwrap().implentation.is_some(), true);
+
+        state.start_component(id);
+        assert_eq!(state.get_component(id).unwrap().run, true);
+
+        state.stop_component(id);
+        assert_eq!(state.get_component(id).unwrap().run, false);
+
+        state.remove_component_implementation(id);
+        assert_eq!(state.get_component(id).unwrap().implentation.is_none(), true);
+
+        state.remove_component(id);
+        assert_eq!(state.total_components(), 1);
+        assert_eq!(state.get_component(id).unwrap().remove, true);
+        assert_eq!(state.get_component(id).unwrap().run, false);
+        assert_eq!(state.get_component(id).unwrap().implentation.is_none(), true);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_global_state_component_not_found() {
+        let state = GlobalState::new();
+
+        let id = uuid::Uuid::new_v4();
+        state.get_component(id).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_global_state_component_not_found_mut() {
+        let mut state = GlobalState::new();
+
+        let id = uuid::Uuid::new_v4();
+        state.get_component_mut(id).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_global_state_component_not_found_start() {
+        let mut state = GlobalState::new();
+
+        let id = uuid::Uuid::new_v4();
+        state.start_component(id);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_global_state_component_not_found_stop() {
+        let mut state = GlobalState::new();
+
+        let id = uuid::Uuid::new_v4();
+        state.stop_component(id);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_global_state_component_not_found_add_implementation() {
+        let mut state = GlobalState::new();
+
+        let id = uuid::Uuid::new_v4();
+        let implementation = Implementation {
+            data_socket: Socket {
+                socket: UnixStream::pair().unwrap().0,
+                count: 0,
+            },
+            state_socket: Socket {
+                socket: UnixStream::pair().unwrap().0,
+                count: 0,
+            },
+            child: std::process::Command::new("ls").spawn().unwrap(),
+            child_pid: 0,
+        };
+
+        state.add_component_implementation(id, implementation);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_global_state_component_not_found_remove() {
+        let mut state = GlobalState::new();
+
+        let id = uuid::Uuid::new_v4();
+        state.remove_component(id);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_global_state_component_not_found_implementation() {
+        let mut state = GlobalState::new();
+
+        let id = uuid::Uuid::new_v4();
+        state.remove_component_implementation(id);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_global_state_component_not_initialized() {
+        let mut state = GlobalState::new();
+
+        let id = uuid::Uuid::new_v4();
+        let path = "path".to_string();
+        let core = 0;
+
+        state.add_component(id, path.clone(), core);
+        state.start_component(id);
+    }
+
+    #[test]
+    fn test_global_state_schedule_empty() {
+        let mut state = GlobalState::new();
+
+        let schedule = Schedule {
+            period: std::time::Duration::from_secs(1),
+            major_frames: vec![],
+        };
+
+        state.set_schedule(schedule);
+
+        assert_eq!(state.schedule.period, std::time::Duration::from_secs(1));
+    }
+
+    #[test]
+    fn test_global_state_schedule() {
+        let mut state = GlobalState::new();
+
+        let id = uuid::Uuid::new_v4();
+        let path = "path".to_string();
+        let core = 0;
+        let implementation = Implementation {
+            data_socket: Socket {
+                socket: UnixStream::pair().unwrap().0,
+                count: 0,
+            },
+            state_socket: Socket {
+                socket: UnixStream::pair().unwrap().0,
+                count: 0,
+            },
+            child: std::process::Command::new("ls").spawn().unwrap(),
+            child_pid: 0,
+        };
+
+        state.add_component(id, path.clone(), core);
+        state.add_component_implementation(id, implementation);
+
+        let schedule = Schedule {
+            period: std::time::Duration::from_secs(1),
+            major_frames: vec![MajorFrame {
+                minor_frames: vec![MinorFrame {
+                    component_id: id,
+                    deadline: std::time::Duration::from_secs(1),
+                }],
+            }],
+        };
+
+        state.set_schedule(schedule);
+
+        assert_eq!(state.schedule.period, std::time::Duration::from_secs(1));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_global_state_schedule_invalid() {
+        let mut state = GlobalState::new();
+
+        let schedule = Schedule {
+            period: std::time::Duration::from_secs(1),
+            major_frames: vec![MajorFrame {
+                minor_frames: vec![MinorFrame {
+                    component_id: uuid::Uuid::new_v4(),
+                    deadline: std::time::Duration::from_secs(1),
+                }],
+            }],
+        };
+
+        state.set_schedule(schedule);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_global_state_schedule_invalid_component() {
+        let mut state = GlobalState::new();
+
+        let id = uuid::Uuid::new_v4();
+        let path = "path".to_string();
+        let core = 0;
+
+        state.add_component(id, path.clone(), core);
+
+        let schedule = Schedule {
+            period: std::time::Duration::from_secs(1),
+            major_frames: vec![MajorFrame {
+                minor_frames: vec![MinorFrame {
+                    component_id: id,
+                    deadline: std::time::Duration::from_secs(1),
+                }],
+            }],
+        };
+
+        state.set_schedule(schedule);
+    }
+
+    #[test]
+    fn test_global_state_route() {
+        let mut state = GlobalState::new();
+
+        let source = RouteEndpoint {
+            endpoint: Endpoint::Component(uuid::Uuid::new_v4()),
+            channel_id: 0,
+        };
+
+        let target = RouteEndpoint {
+            endpoint: Endpoint::Component(uuid::Uuid::new_v4()),
+            channel_id: 1,
+        };
+
+        state.add_route(source, target);
+
+        assert_eq!(state.routes.len(), 1);
+        assert_eq!(state.routes.get(&source).unwrap().endpoint, target.endpoint);
+
+        state.remove_route(source);
+
+        assert_eq!(state.routes.len(), 0);
+    }
+
+    #[test]
+    fn test_global_state_message() {
+        let mut state = GlobalState::new();
+
+        let channel_id = 0;
+        let message = Message {
+            channel_id,
+            data: vec![],
+            count: 0,
+        };
+
+        state.messages.insert(channel_id, vec![message.clone()]);
+
+        let message = state.get_message(channel_id).unwrap();
+        assert_eq!(message.channel_id, channel_id);
+        assert_eq!(state.messages.get(&channel_id).unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_global_state_message_empty() {
+        let mut state = GlobalState::new();
+
+        let channel_id = 0;
+
+        let message = state.get_message(channel_id);
+        assert_eq!(message.is_none(), true);
+    }
+
+    #[test]
+    fn test_global_state_done() {
+        let mut state = GlobalState::new();
+
+        assert_eq!(state.get_done(), false);
+
+        state.set_done(true);
+        assert_eq!(state.get_done(), true);
+    }
+    
 }

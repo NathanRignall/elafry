@@ -6,13 +6,13 @@ use std::{
 
 use elafry::types::communication::Message;
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct RouteEndpoint {
     pub endpoint: Endpoint,
     pub channel_id: u32,
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum Endpoint {
     Component(uuid::Uuid),
     Address(SocketAddr),

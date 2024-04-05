@@ -92,8 +92,7 @@ pub fn add_component_implementation(
     let child_state_socket_fd = child_state_socket.into_raw_fd();
 
     // spawn the child process
-    let binary_path = format!("target/release/{}", path);
-    let mut command = Command::new(binary_path);
+    let mut command = Command::new(path);
     command
         .fd_mappings(vec![
             FdMapping {
@@ -294,6 +293,9 @@ pub fn remove_component(
                     // remove the component implementation
                     state.remove_component_implementation(uuid);
 
+                    // remove the component from the state
+                    state.remove_component(uuid);
+
                     // set the status to done
                     *action_status = ActionState::Completed;
                 } else {
@@ -309,4 +311,181 @@ pub fn remove_component(
             log::warn!("Should not be here");
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::global_state::Socket;
+
+    use super::*;
+    use std::sync::mpsc::channel;
+    use std::thread;
+
+    #[test]
+    fn test_add_component_implementation() {
+        let path = "ls";
+        let core = 0;
+
+        let implementation = add_component_implementation(path.to_string(), core);
+
+        assert_eq!(implementation.data_socket.count, 0);
+        assert_eq!(implementation.state_socket.count, 0);
+    }
+
+    #[test]
+    fn test_remove_component_implementation() {
+        let path = "ls";
+        let core = 0;
+
+        let mut implementation = add_component_implementation(path.to_string(), core);
+
+        remove_component_implementation(&mut implementation);
+    }
+
+    #[test]
+    fn test_add_component() {
+        let (sender, receiver) = channel();
+        let actions = Arc::new(Mutex::new(Vec::new()));
+        let done_implement = Arc::new(Mutex::new(HashMap::new()));
+        let mut state = crate::global_state::GlobalState::new();
+        let mut action_status = ActionState::Started;
+
+        // start the background thread
+        let actions_clone = actions.clone();
+        let done_implement_clone = done_implement.clone();
+        thread::spawn(move || {
+            main(receiver, actions_clone, done_implement_clone, Arc::new(Mutex::new(Vec::new())));
+        });
+
+        let data = elafry::types::configuration::AddComponentData {
+            component_id: Uuid::new_v4(),
+            component: "ls".to_string(),
+            core: 0,
+            version: "0.1.0".to_string(),
+        };
+
+        add_component(
+            &mut state,
+            &mut action_status,
+            sender.clone(),
+            actions.clone(),
+            done_implement.clone(),
+            data.clone(),
+        );
+
+        assert_eq!(action_status, ActionState::Running);
+
+        add_component(
+            &mut state,
+            &mut action_status,
+            sender.clone(),
+            actions.clone(),
+            done_implement.clone(),
+            data.clone(),
+        );
+
+        assert_eq!(action_status, ActionState::Stopped);
+
+        // wait for the background thread to finish
+        thread::sleep(std::time::Duration::from_secs(1));
+
+        add_component(
+            &mut state,
+            &mut action_status,
+            sender.clone(),
+            actions.clone(),
+            done_implement.clone(),
+            data.clone(),
+        );
+
+        assert_eq!(action_status, ActionState::Completed);
+
+        // check if the component was added to the state
+        assert!(state.get_component(data.component_id).is_some());
+        assert!(state.get_component(data.component_id).unwrap().implentation.is_some());
+
+    }
+
+    #[test]
+    fn test_remove_component() {
+        let (sender, receiver) = channel();
+        let actions = Arc::new(Mutex::new(Vec::new()));
+        let done_remove = Arc::new(Mutex::new(Vec::new()));
+        let mut state = crate::global_state::GlobalState::new();
+        let mut action_status = ActionState::Started;
+
+        // create a dummy component on the state
+        let id = uuid::Uuid::new_v4();
+        let path = "path".to_string();
+        let core = 0;
+        let implementation = Implementation {
+            data_socket: Socket {
+                socket: UnixStream::pair().unwrap().0,
+                count: 0,
+            },
+            state_socket: Socket {
+                socket: UnixStream::pair().unwrap().0,
+                count: 0,
+            },
+            child: std::process::Command::new("ls").spawn().unwrap(),
+            child_pid: 0,
+        };
+
+        state.add_component(id, path.clone(), core);
+        state.add_component_implementation(id, implementation);
+
+        // start the background thread
+        let actions_clone = actions.clone();
+        let done_remove_clone = done_remove.clone();
+        thread::spawn(move || {
+            main(receiver, actions_clone, Arc::new(Mutex::new(HashMap::new())), done_remove_clone);
+        });
+
+        let data = elafry::types::configuration::RemoveComponentData {
+            component_id: id,
+        };
+
+        remove_component(
+            &mut state,
+            &mut action_status,
+            sender.clone(),
+            actions.clone(),
+            done_remove.clone(),
+            data.clone(),
+        );
+
+        assert_eq!(action_status, ActionState::Running);
+
+        remove_component(
+            &mut state,
+            &mut action_status,
+            sender.clone(),
+            actions.clone(),
+            done_remove.clone(),
+            data.clone(),
+        );
+
+        assert_eq!(action_status, ActionState::Stopped);
+
+        // wait for the background thread to finish
+        thread::sleep(std::time::Duration::from_secs(1));
+
+        remove_component(
+            &mut state,
+            &mut action_status,
+            sender.clone(),
+            actions.clone(),
+            done_remove.clone(),
+            data.clone(),
+        );
+
+        assert_eq!(action_status, ActionState::Completed);
+
+        // check if the component was removed from the state
+        assert_eq!(state.total_components(), 1);
+        assert_eq!(state.get_component(id).unwrap().remove, true);
+        assert_eq!(state.get_component(id).unwrap().run, false);
+        assert_eq!(state.get_component(id).unwrap().implentation.is_none(), true);
+    }
+
 }

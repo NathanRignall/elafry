@@ -4,7 +4,7 @@ tasks:
       - id: 0bab7599-4dad-455f-adec-d30663db087d
         data: !add-component
           component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
-          component: demo_a
+          component: target/release/demo_a
           core: 2
           version: 1.0.0
 
@@ -34,7 +34,7 @@ tasks:
 
       - id: 286855f8-752e-4116-9703-ec6ad9d84fb1
         data: !set-schedule
-          frequency: 1000
+          frequency: 2000
           major-frames:
             - minor-frames:
                 - component-id: a8b72b60-d420-4c9a-8211-3afb36a1af7a
