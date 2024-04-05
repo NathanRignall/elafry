@@ -57,13 +57,11 @@ impl Manager {
         let mut length_buf = length.to_be_bytes().to_vec();
         length_buf.append(&mut self.data.clone());
 
-        // println!("Sending message: {:?}", length_buf);
-
-        // //if going to block, don't send message
-        // match self.stream.write_all("hello".as_bytes()) {
-        //     Ok(_) => log::debug!("sent message"),
-        //     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => log::error!("Write would block"),
-        //     Err(e) => log::error!("encountered IO error: {}", e),
-        // }
+        //if going to block, don't send message
+        match self.stream.write_all(&length_buf) {
+            Ok(_) => {},
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => log::error!("Write would block"),
+            Err(e) => log::error!("encountered IO error: {}", e),
+        }
     }
 }

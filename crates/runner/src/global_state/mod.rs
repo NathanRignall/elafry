@@ -38,7 +38,7 @@ impl GlobalState {
             components: HashMap::new(),
             routes: HashMap::new(),
             schedule: Schedule {
-                period: std::time::Duration::from_secs(1),
+                period: std::time::Duration::from_micros(1000),
                 major_frames: vec![],
             },
             messages: HashMap::new(),
@@ -199,6 +199,9 @@ impl GlobalState {
 
         // set the schedule in the state
         self.schedule = schedule;
+
+        // print the schedule duration
+        log::debug!("Schedule duration: {:?}", self.schedule.period);
     }
 
     pub fn get_message(&mut self, channel_id: u32) -> Option<Message> {

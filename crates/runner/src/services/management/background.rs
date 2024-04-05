@@ -83,8 +83,9 @@ pub fn add_component_implementation(
 
     // create control and data sockets
     let (data_socket, child_data_socket) = UnixStream::pair().unwrap();
-    let (state_socket, child_state_socket) = UnixStream::pair().unwrap();
     data_socket.set_nonblocking(true).unwrap();
+
+    let (state_socket, child_state_socket) = UnixStream::pair().unwrap();
     state_socket.set_nonblocking(true).unwrap();
 
     // create fds for the child process
@@ -96,11 +97,11 @@ pub fn add_component_implementation(
     command
         .fd_mappings(vec![
             FdMapping {
-                child_fd: 11,
+                child_fd: 10,
                 parent_fd: unsafe { OwnedFd::from_raw_fd(child_data_socket_fd) },
             },
             FdMapping {
-                child_fd: 12,
+                child_fd: 11,
                 parent_fd: unsafe { OwnedFd::from_raw_fd(child_state_socket_fd) },
             },
         ])

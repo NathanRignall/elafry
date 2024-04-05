@@ -25,8 +25,8 @@ pub fn run<T: Component + 'static>(mut component: T) {
     log::info!("Starting component");
 
     // establish socket with parent
-    let child_data_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(11) };
-    let child_state_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(12) };
+    let child_data_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(10) };
+    let child_state_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(11) };
 
     // set up data socket
     let child_data_socket = unsafe { UnixStream::from_raw_fd(child_data_socket_fd) };

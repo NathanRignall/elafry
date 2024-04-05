@@ -17,23 +17,30 @@ impl StateService {
             let mut length_buf = [0; 4];
 
             // loop for a maximum of 10 times until no more data is available
-            for _ in 0..10 {
+            for _ in 0..100 {
                 match &mut component.implentation {
                     Some(implentation) => {
-                        match implentation.data_socket.socket.read_exact(&mut length_buf) {
+                        match implentation.state_socket.socket.read_exact(&mut length_buf) {
                             Ok(_) => {
                                 // get length of message
                                 let length = u32::from_be_bytes(length_buf);
 
                                 // don't read if length is 0
                                 if length == 0 {
+                                    log::error!("Length is 0");
+                                    continue;
+                                }
+
+                                // if length is greater than 1000, skip
+                                if length > 1000 {
+                                    log::error!("Length is greater than 1000");
                                     continue;
                                 }
 
                                 // create buffer with length
                                 let state_buf = {
                                     let mut buf = vec![0; length as usize];
-                                    match implentation.data_socket.socket.read_exact(&mut buf) {
+                                    match implentation.state_socket.socket.read_exact(&mut buf) {
                                         Ok(_) => buf,
                                         Err(e) => {
                                             log::error!(

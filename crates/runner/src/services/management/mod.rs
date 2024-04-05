@@ -289,7 +289,7 @@ impl ManagementService {
             }
             elafry::types::configuration::BlockingData::SetSchedule(data) => {
                 state.set_schedule(Schedule {
-                    period: std::time::Duration::from_micros(1_000_000 / data.frequency),
+                    period: std::time::Duration::from_micros(data.deadline),
                     major_frames: data
                         .major_frames
                         .into_iter()

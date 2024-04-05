@@ -110,7 +110,7 @@ pub enum Endpoint {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct SetScheduleData {
-    pub frequency: u64,
+    pub deadline: u64,
     #[serde(rename = "major-frames")]
     pub major_frames: Vec<MajorFrame>,
 }
