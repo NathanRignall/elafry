@@ -9,7 +9,7 @@ use std::sync::{mpsc, Arc, Mutex};
 use command_fds::{CommandFdExt, FdMapping};
 use uuid::Uuid;
 
-use crate::global_state::Implementation;
+use crate::global_state::{Implementation, StateSyncStatus};
 use crate::services::management::ActionState;
 
 pub enum NonBlockingImplementationData {
@@ -38,7 +38,7 @@ pub fn main(
         log::debug!("Waiting for signal");
         match receiver.recv() {
             Ok(_) => {
-                log::info!("Received signal");
+                log::debug!("Received signal");
 
                 // loop through all non-blocking actions
                 let mut non_blocking_actions = non_blocking_actions.lock().unwrap();
@@ -68,7 +68,7 @@ pub fn main(
                 // clear the list of non-blocking actions
                 non_blocking_actions.clear();
 
-                log::info!("Done processing signal");
+                log::debug!("Done processing signal");
             }
             Err(_) => {}
         }
@@ -191,11 +191,13 @@ pub fn add_component(
             // try get a lock on the actions
             if let Ok(mut actions) = actions.try_lock() {
                 // push the action to the actions vector
-                actions.push(NonBlockingImplementationData::AddComponent(AddComponentImplementation {
-                    component_id: data.component_id,
-                    component: data.component,
-                    core: data.core,
-                }));
+                actions.push(NonBlockingImplementationData::AddComponent(
+                    AddComponentImplementation {
+                        component_id: data.component_id,
+                        component: data.component,
+                        core: data.core,
+                    },
+                ));
 
                 // send signal to background thread
                 sender.send(()).unwrap();
@@ -229,11 +231,9 @@ pub fn add_component(
     }
 }
 
-pub fn remove_component_implementation(
-    implementation: &mut Implementation,
-) {
+fn remove_component_implementation(implementation: &mut Implementation) {
     log::trace!("BACKGROUND: Removing component");
-    
+
     // send signal to child process to stop
     implementation.child.kill().unwrap();
 
@@ -272,10 +272,12 @@ pub fn remove_component(
                 let implementation = component.implentation.take();
 
                 // push the action to the actions vector
-                actions.push(NonBlockingImplementationData::RemoveComponent(RemoveComponentImplementation {
-                    component_id: data.component_id,
-                    implementation: implementation.unwrap(),
-                }));
+                actions.push(NonBlockingImplementationData::RemoveComponent(
+                    RemoveComponentImplementation {
+                        component_id: data.component_id,
+                        implementation: implementation.unwrap(),
+                    },
+                ));
 
                 // send signal to background thread
                 sender.send(()).unwrap();
@@ -307,6 +309,45 @@ pub fn remove_component(
             }
 
             *action_status = ActionState::Completed;
+        }
+        ActionState::Completed => {
+            log::warn!("Should not be here");
+        }
+    }
+}
+
+pub fn wait_state_sync(
+    state: &mut crate::global_state::GlobalState,
+    action_status: &mut ActionState,
+    data: elafry::types::configuration::WaitStateSyncData,
+) {
+    log::debug!("Syncing state {} {:?}", data.state_sync_id, *action_status);
+
+    match *action_status {
+        ActionState::Started => {
+            // create the state sync
+            state.set_state_sync_status(data.state_sync_id, StateSyncStatus::Started);
+
+            // set the status to running
+            *action_status = ActionState::Running;
+        }
+        ActionState::Running => {
+            // wait for the state to be synced
+            let state_sync = state.get_state_sync_status(data.state_sync_id);
+
+            // if the state is synced
+            match state_sync {
+                StateSyncStatus::Synced => {
+                    // set the status to completed
+                    *action_status = ActionState::Completed;
+                }
+                _ => {
+                    log::warn!("State not synced");
+                }
+            }
+        }
+        ActionState::Stopped => {
+            log::warn!("Should not be here");
         }
         ActionState::Completed => {
             log::warn!("Should not be here");
@@ -355,7 +396,12 @@ mod tests {
         let actions_clone = actions.clone();
         let done_implement_clone = done_implement.clone();
         thread::spawn(move || {
-            main(receiver, actions_clone, done_implement_clone, Arc::new(Mutex::new(Vec::new())));
+            main(
+                receiver,
+                actions_clone,
+                done_implement_clone,
+                Arc::new(Mutex::new(Vec::new())),
+            );
         });
 
         let data = elafry::types::configuration::AddComponentData {
@@ -403,8 +449,11 @@ mod tests {
 
         // check if the component was added to the state
         assert!(state.get_component(data.component_id).is_some());
-        assert!(state.get_component(data.component_id).unwrap().implentation.is_some());
-
+        assert!(state
+            .get_component(data.component_id)
+            .unwrap()
+            .implentation
+            .is_some());
     }
 
     #[test]
@@ -439,12 +488,15 @@ mod tests {
         let actions_clone = actions.clone();
         let done_remove_clone = done_remove.clone();
         thread::spawn(move || {
-            main(receiver, actions_clone, Arc::new(Mutex::new(HashMap::new())), done_remove_clone);
+            main(
+                receiver,
+                actions_clone,
+                Arc::new(Mutex::new(HashMap::new())),
+                done_remove_clone,
+            );
         });
 
-        let data = elafry::types::configuration::RemoveComponentData {
-            component_id: id,
-        };
+        let data = elafry::types::configuration::RemoveComponentData { component_id: id };
 
         remove_component(
             &mut state,
@@ -486,7 +538,9 @@ mod tests {
         assert_eq!(state.total_components(), 1);
         assert_eq!(state.get_component(id).unwrap().remove, true);
         assert_eq!(state.get_component(id).unwrap().run, false);
-        assert_eq!(state.get_component(id).unwrap().implentation.is_none(), true);
+        assert_eq!(
+            state.get_component(id).unwrap().implentation.is_none(),
+            true
+        );
     }
-
 }

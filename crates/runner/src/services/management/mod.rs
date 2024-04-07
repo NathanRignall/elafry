@@ -4,7 +4,7 @@ use std::sync::{mpsc, Arc, Mutex};
 
 use uuid::Uuid;
 
-use crate::global_state::Implementation;
+use crate::global_state::{Implementation, StateEndpoint, StateSyncStatus};
 use crate::services::communication::Endpoint;
 use crate::services::scheduler::{MajorFrame, MinorFrame};
 
@@ -75,8 +75,8 @@ impl ManagementService {
                     println!("Failed to set scheduler");
                 }
             }
-            
-            background::main(receiver, non_blocking_actions, done_implement, done_remove)
+
+            background::main(receiver, non_blocking_actions, done_implement, done_remove);
         });
 
         ManagementService {
@@ -187,6 +187,7 @@ impl ManagementService {
                         }
                     }
                     elafry::types::configuration::Action::NonBlocking(actions) => {
+                        log::debug!("Non-blocking actions");
                         if *blocked {
                             for action in actions {
                                 let status = action_status.get_mut(&action.id).unwrap();
@@ -306,6 +307,21 @@ impl ManagementService {
                         .collect(),
                 });
             }
+            elafry::types::configuration::BlockingData::AddStateSync(data) => {
+                state.add_state_sync(
+                    data.state_sync_id,
+                    StateEndpoint {
+                        component_id: data.source.component_id,
+                    },
+                    StateEndpoint {
+                        component_id: data.target.component_id,
+                    },
+                    StateSyncStatus::Created,
+                );
+            }
+            elafry::types::configuration::BlockingData::RemoveStateSync(data) => {
+                state.remove_state_sync(data.state_sync_id);
+            }
         }
     }
 
@@ -329,6 +345,9 @@ impl ManagementService {
             }
             elafry::types::configuration::NonBlockingData::RemoveComponent(data) => {
                 background::remove_component(state, status, sender, actions, done_remove, data);
+            }
+            elafry::types::configuration::NonBlockingData::WaitStateSync(data) => {
+                background::wait_state_sync(state, status, data);
             }
         }
     }

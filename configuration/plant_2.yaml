@@ -8,8 +8,28 @@ tasks:
           core: 3
           version: 1.0.0
 
+  - id: 0190ec62-dcfa-47c1-a9e5-da6361e62eaf
+    actions: !blocking
+      - id: 218420a1-2302-439b-83fd-328d6d9eb2e6
+        data: !add-state-sync
+          state-sync-id: 33eecdf3-3b52-4183-bd2d-fd10309bf92c
+          source:
+            component-id: 4d2f439b-ae60-42b6-ae45-b4db5d020f21
+          target:
+            component-id: 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
+
+  - id: dce5b679-11dc-48a2-8089-32c400535b81
+    actions: !non-blocking
+      - id: 6c8fa679-e6ee-4c21-8081-6abe21c0049b
+        data: !wait-state-sync
+          state-sync-id: 33eecdf3-3b52-4183-bd2d-fd10309bf92c
+
   - id: 7e1e1da5-9a6e-41bc-b85c-2c07403159a4
     actions: !blocking
+      - id: 161841b9-d443-479c-b817-997866adbac8
+        data: !remove-state-sync
+          state-sync-id: 33eecdf3-3b52-4183-bd2d-fd10309bf92c
+
       - id: 44403375-c221-4a80-aebe-d82b28a3ac94
         data: !stop-component
           component-id: 4d2f439b-ae60-42b6-ae45-b4db5d020f21
@@ -36,7 +56,7 @@ tasks:
             endpoint: !component-id 9a069153-c335-47c5-a653-dec6c0e7c280
             channel-id: 1
           target:
-            endpoint: !component-id  4310fde1-8c21-4054-a5d6-8b64c2c2afcd
+            endpoint: !component-id 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
             channel-id: 1
 
       - id: 6fd3af88-d1f6-46d4-9c0c-ba539bdb59d6

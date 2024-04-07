@@ -24,11 +24,29 @@ pub struct Socket {
     pub count: u8,
 }
 
+pub struct StateSync {
+    pub source: StateEndpoint,
+    pub target: StateEndpoint,
+    pub status: StateSyncStatus,
+}
+
+pub struct StateEndpoint {
+    pub component_id: uuid::Uuid,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum StateSyncStatus {
+    Created,
+    Started,
+    Synced,
+}
+
 pub struct GlobalState {
     pub components: HashMap<uuid::Uuid, Component>,
     pub routes: HashMap<RouteEndpoint, RouteEndpoint>,
     pub schedule: Schedule,
     pub messages: HashMap<u32, Vec<Message>>,
+    pub state_sync: HashMap<uuid::Uuid, StateSync>,
     done: bool,
 }
 
@@ -42,6 +60,7 @@ impl GlobalState {
                 major_frames: vec![],
             },
             messages: HashMap::new(),
+            state_sync: HashMap::new(),
             done: false,
         }
     }
@@ -104,7 +123,7 @@ impl GlobalState {
     }
 
     pub fn add_component(&mut self, id: uuid::Uuid, path: String, core: usize) {
-        log::debug!("Adding component {}", id);
+        log::info!("Adding component {}", id);
 
         // add the component to the state
         self.components.insert(
@@ -179,7 +198,7 @@ impl GlobalState {
     }
 
     pub fn set_schedule(&mut self, schedule: Schedule) {
-        log::debug!("Setting schedule");
+        log::info!("Setting schedule");
 
         // check if the schedule is valid by checking if all components in the schedule are in the state and initialized
         for major_frame in &schedule.major_frames {
@@ -213,6 +232,53 @@ impl GlobalState {
             return message;
         } else {
             return None;
+        }
+    }
+
+    pub fn add_state_sync(&mut self, state_sync_id: uuid::Uuid, source: StateEndpoint, target: StateEndpoint, status: StateSyncStatus) {
+        log::debug!("Adding state sync {}", state_sync_id);
+
+        // add the state sync to the state
+        self.state_sync.insert(
+            state_sync_id,
+            StateSync {
+                source,
+                target,
+                status,
+            },
+        );
+    }
+
+    pub fn remove_state_sync(&mut self, state_sync_id: uuid::Uuid) {
+        log::debug!("Removing state sync {}", state_sync_id);
+
+        // remove the state sync from the state
+        self.state_sync.remove(&state_sync_id);
+    }
+
+    pub fn get_state_sync_status(&self, state_sync_id: uuid::Uuid) -> StateSyncStatus {
+        log::debug!("Getting state sync {} status", state_sync_id);
+
+        // check if state_sync_id exists in hashmap
+        if self.state_sync.contains_key(&state_sync_id) {
+            // get status from state_sync
+            let state_sync = self.state_sync.get(&state_sync_id).unwrap();
+            return state_sync.status;
+        } else {
+            panic!("State sync {} not found", state_sync_id);
+        }
+    }
+
+    pub fn set_state_sync_status(&mut self, state_sync_id: uuid::Uuid, status: StateSyncStatus) {
+        log::debug!("Setting state sync {} status to {:?}", state_sync_id, status);
+
+        // check if state_sync_id exists in hashmap
+        if self.state_sync.contains_key(&state_sync_id) {
+            // set status in state_sync
+            let state_sync = self.state_sync.get_mut(&state_sync_id).unwrap();
+            state_sync.status = status;
+        } else {
+            panic!("State sync {} not found", state_sync_id);
         }
     }
 }

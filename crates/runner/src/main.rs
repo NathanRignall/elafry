@@ -86,7 +86,7 @@ fn main() {
             overruns,
             2,
         ));
-        management_service.run(&mut global_state);
+        state_service.run(&mut global_state);
 
         times.push((
             std::time::SystemTime::now()
@@ -99,7 +99,7 @@ fn main() {
             overruns,
             3,
         ));
-        state_service.run(&mut global_state);
+        management_service.run(&mut global_state);
 
         times.push((
             std::time::SystemTime::now()

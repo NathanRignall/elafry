@@ -43,6 +43,10 @@ pub enum BlockingData {
     RemoveRoute(RemoveRouteData),
     #[serde(rename = "set-schedule")]
     SetSchedule(SetScheduleData),
+    #[serde(rename = "add-state-sync")]
+    AddStateSync(AddStateSyncData),
+    #[serde(rename = "remove-state-sync")]
+    RemoveStateSync(RemoveStateSyncData),
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
@@ -51,6 +55,8 @@ pub enum NonBlockingData {
     AddComponent(AddComponentData),
     #[serde(rename = "remove-component")]
     RemoveComponent(RemoveComponentData),
+    #[serde(rename = "wait-state-sync")]
+    WaitStateSync(WaitStateSyncData),
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
@@ -126,4 +132,30 @@ pub struct MinorFrame {
     #[serde(rename = "component-id")]
     pub component_id: uuid::Uuid,
     pub deadline: u64,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct AddStateSyncData {
+    #[serde(rename = "state-sync-id")]
+    pub state_sync_id: uuid::Uuid,
+    pub source: StateEndpoint,
+    pub target: StateEndpoint,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct RemoveStateSyncData {
+    #[serde(rename = "state-sync-id")]
+    pub state_sync_id: uuid::Uuid,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct WaitStateSyncData {
+    #[serde(rename = "state-sync-id")]
+    pub state_sync_id: uuid::Uuid,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct StateEndpoint {
+    #[serde(rename = "component-id")]
+    pub component_id: uuid::Uuid,
 }
