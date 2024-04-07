@@ -37,7 +37,6 @@ impl Manager {
                     stream.read_exact(&mut state_buf).unwrap();
 
                     self.data = state_buf;
-                    println!("Received message: {:?}", self.data);
                 }
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock =>  break,
                 Err(e) => panic!("encountered IO error: {}", e),

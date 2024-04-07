@@ -4,10 +4,14 @@ use std::os::unix::net::UnixStream;
 
 use crate::types::communication::Message;
 
-pub struct Manager {
-    stream: UnixStream,
+pub struct State {
     send_count: u8,
     receive_count: u8,
+}
+
+pub struct Manager {
+    stream: UnixStream,
+    state: State,
     messages: HashMap<u32, Vec<Message>>,
 }
 
@@ -15,8 +19,10 @@ impl Manager {
     pub fn new(stream: UnixStream) -> Manager {
         Manager {
             stream,
-            send_count: 0,
-            receive_count: 0,
+            state: State {
+                send_count: 0,
+                receive_count: 0,
+            },
             messages: HashMap::new(),
         }
     }
@@ -53,17 +59,17 @@ impl Manager {
                     };
 
                     // check count of message matches receive count
-                    if message.count != self.receive_count {
+                    if message.count != self.state.receive_count {
                         log::error!(
                             "Received message with count {} but expected {}",
                             message.count,
-                            self.receive_count
+                            self.state.receive_count
                         );
-                        self.receive_count = message.count;
+                        self.state.receive_count = message.count;
                     }
 
                     // increment receive count
-                    self.receive_count += 1;
+                    self.state.receive_count += 1;
 
                     // add message to hashmap
                     let channel_id = message.channel_id;
@@ -100,7 +106,7 @@ impl Manager {
         let message = Message {
             channel_id,
             data,
-            count: self.send_count,
+            count: self.state.send_count,
         };
 
         // serialize message
@@ -110,7 +116,7 @@ impl Manager {
         length_buf.append(&mut message_buf.clone());
 
         // increment send count
-        self.send_count += 1;
+        self.state.send_count += 1;
 
         // if going to block, don't send message
         match stream.write_all(&length_buf) {
