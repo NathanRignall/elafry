@@ -39,13 +39,12 @@ fn main() {
     let mut state_service = StateService::new();
 
     // frame index
-    let period = std::time::Duration::from_micros(1_000_000 / 2000 as u64);
     let mut last_sleep = std::time::Duration::from_micros(0);
     let mut last_duration = std::time::Duration::from_micros(0);
     let mut overruns = 0;
     let mut times = vec![];
 
-    log::info!("Starting runner loop with period {}us", period.as_micros());
+    log::info!("Starting runner loop with period {}us", global_state.schedule.period.as_micros());
 
     loop {
         let last_time = std::time::Instant::now();
@@ -55,6 +54,7 @@ fn main() {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_micros() as u64,
+            global_state.schedule.period.as_micros() as u64,
             last_sleep.as_micros() as u64,
             last_duration.as_micros() as u64,
             overruns,
@@ -67,6 +67,7 @@ fn main() {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_micros() as u64,
+            global_state.schedule.period.as_micros() as u64,
             last_sleep.as_micros() as u64,
             last_duration.as_micros() as u64,
             overruns,
@@ -79,22 +80,11 @@ fn main() {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_micros() as u64,
+            global_state.schedule.period.as_micros() as u64,
             last_sleep.as_micros() as u64,
             last_duration.as_micros() as u64,
             overruns,
             2,
-        ));
-        management_service.run(&mut global_state);
-
-        times.push((
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_micros() as u64,
-            last_sleep.as_micros() as u64,
-            last_duration.as_micros() as u64,
-            overruns,
-            3,
         ));
         state_service.run(&mut global_state);
 
@@ -103,6 +93,20 @@ fn main() {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_micros() as u64,
+            global_state.schedule.period.as_micros() as u64,
+            last_sleep.as_micros() as u64,
+            last_duration.as_micros() as u64,
+            overruns,
+            3,
+        ));
+        management_service.run(&mut global_state);
+
+        times.push((
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_micros() as u64,
+            global_state.schedule.period.as_micros() as u64,
             last_sleep.as_micros() as u64,
             last_duration.as_micros() as u64,
             overruns,
@@ -119,8 +123,8 @@ fn main() {
         let duration = now.duration_since(last_time);
         let mut sleep = std::time::Duration::from_micros(0);
 
-        if duration <= period {
-            sleep = period - duration;
+        if duration <= global_state.schedule.period {
+            sleep = global_state.schedule.period - duration;
             std::thread::sleep(sleep);
         } else {
             overruns += 1;

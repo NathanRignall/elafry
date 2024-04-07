@@ -10,7 +10,9 @@ pub struct SensorData {
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct ControlData {
     thrust: f64,
-    org_timestamp: u64,
+    timestamp: u64,
+    loop_count: u64,
+    update: bool,
 }
 
 struct PlantModel {
@@ -56,6 +58,8 @@ struct State {
 struct Plant {
     writer: csv::Writer<std::fs::File>,
     last_timestamp: u64,
+    last_loop_count: u64,
+    last_update: bool,
     state: State,
     plant_model: PlantModel,
 }
@@ -73,10 +77,15 @@ impl elafry::Component for Plant {
             plant_model: PlantModel::new(),
             writer: csv::Writer::from_path("plant.csv").unwrap(),
             last_timestamp: 0,
+            last_loop_count: 0,
+            last_update: false,
         }
     }
 
     fn run(&mut self, services: &mut elafry::Services) {
+        // reset last loop count
+        self.last_loop_count = 0;
+
         // do stuff with messages
         loop {
             let message = services.communication.get_message(2);
@@ -91,7 +100,9 @@ impl elafry::Component for Plant {
                     };
 
                     self.state.thrust = control_data.thrust;
-                    self.last_timestamp = control_data.org_timestamp;
+                    self.last_timestamp = control_data.timestamp;
+                    self.last_loop_count = control_data.loop_count;
+                    self.last_update = control_data.update;
                 }
                 None => break,
             }
@@ -137,7 +148,7 @@ impl elafry::Component for Plant {
 
         // calculate difference in time between now and last timestamp
         let time_diff = timestamp - self.last_timestamp;
-
+        
         // write to csv
         self.writer
             .serialize((
@@ -147,6 +158,8 @@ impl elafry::Component for Plant {
                 sensor_data.position,
                 self.state.thrust,
                 self.state.setpoint,
+                self.last_loop_count,
+                self.last_update,
             ))
             .unwrap();
     }

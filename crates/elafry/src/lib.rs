@@ -14,26 +14,19 @@ pub struct Services {
     pub state: services::state::Manager,
 }
 
-use std::{
-    io::{Read, Write},
-    os::{
-        fd::{FromRawFd, RawFd},
-        unix::net::UnixStream,
-    },
+use std::os::{
+    fd::{FromRawFd, RawFd},
+    unix::net::UnixStream,
 };
 
 pub fn run<T: Component + 'static>(mut component: T) {
     env_logger::init();
-    
-    // establish socket with parent
-    let child_control_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(10) };
-    let child_data_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(11) };
-    let child_state_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(12) };
 
-    // set up control socket
-    let mut child_control_socket = unsafe { UnixStream::from_raw_fd(child_control_socket_fd) };
-    child_control_socket.set_nonblocking(false).unwrap();
-    let mut child_control_count: u8 = 0;
+    log::info!("Starting component");
+
+    // establish socket with parent
+    let child_data_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(10) };
+    let child_state_socket_fd: RawFd = unsafe { std::os::unix::io::FromRawFd::from_raw_fd(11) };
 
     // set up data socket
     let child_data_socket = unsafe { UnixStream::from_raw_fd(child_data_socket_fd) };
@@ -42,7 +35,7 @@ pub fn run<T: Component + 'static>(mut component: T) {
     // set up state socket
     let child_state_socket = unsafe { UnixStream::from_raw_fd(child_state_socket_fd) };
     child_state_socket.set_nonblocking(true).unwrap();
-    
+
     // setup services
     let mut services = Services {
         communication: services::communication::Manager::new(child_data_socket),
@@ -55,11 +48,6 @@ pub fn run<T: Component + 'static>(mut component: T) {
     // save the initial state
     services.state.set_data(component.save_state());
 
-    // acknowledge component init
-    child_control_socket
-        .write_all(&[b'k'])
-        .expect("Failed to write to socket");
-
     #[cfg(feature = "instrument")]
     log::debug!("Instrumentation enabled");
 
@@ -68,35 +56,15 @@ pub fn run<T: Component + 'static>(mut component: T) {
 
     // do work
     loop {
-        // set to non-blocking mode
-        child_control_socket.set_nonblocking(false).unwrap();
+        // log::info!("Running component");
 
-        let mut buf = [0; 2];
-        child_control_socket
-            .read_exact(&mut buf)
-            .expect("Failed to read from socket");
-        child_control_socket
-            .write_all(&[b'k'])
-            .expect("Failed to write to socket");
-
-        child_control_count += 1;
-
-        // set to blocking mode
-        child_control_socket.set_nonblocking(true).unwrap();
-        loop {
-            match child_control_socket.read_exact(&mut buf) {
-                Ok(_) => break,
-                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => (),
-                Err(e) => panic!("Failed to read from socket: {}", e),
-            }
+        // suspend self
+        let pid = unsafe { libc::getpid() };
+        if unsafe { libc::kill(pid, libc::SIGSTOP) } != 0 {
+            panic!("Failed to suspend child");
         }
 
-        if buf[1] != child_control_count {
-            log::warn!(
-                "Control count mismatch ({} != {})",
-                buf[1], child_control_count
-            );
-        }
+        // log::info!("Resumed");
 
         #[cfg(feature = "instrument")]
         {
@@ -104,49 +72,18 @@ pub fn run<T: Component + 'static>(mut component: T) {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_micros() as u64;
-            times.push((timestamp, child_control_count));
+            times.push(timestamp);
         }
 
-        child_control_count += 1;
+        // run the services
+        services.state.run();
+        services.communication.run();
 
-        match buf[0] {
-            b'q' => {
-                log::info!("Quitting");
-                break;
-            }
-            b'r' => {
-                // run the services
-                services.state.run();
-                services.communication.run();
+        // run the component
+        component.load_state(services.state.get_data());
+        component.run(&mut services);
+        services.state.set_data(component.save_state());
 
-                // run the component
-                component.load_state(services.state.get_data());
-                component.run(&mut services);
-                services.state.set_data(component.save_state());
-
-                // acknowledge component run
-                child_control_socket
-                    .write_all(&[b'k'])
-                    .expect("Failed to write to socket");
-            }
-            _ => (),
-        }
-    }
-
-    #[cfg(feature = "instrument")]
-    {
-        log::debug!("Instrumentation complete");
-
-        // extract component type name
-        let type_name = std::any::type_name::<T>();
-        let instrument_file = format!("instrumentation_{}.csv", type_name);
-
-        let mut writer = csv::Writer::from_path(instrument_file).expect("Failed to open file");
-        for (i, time) in times.iter().enumerate() {
-            let (time, count) = time;
-            writer
-                .serialize((i, time, count))
-                .expect("Failed to write to file");
-        }
+        // log::info!("Component done");
     }
 }

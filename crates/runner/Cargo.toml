@@ -16,3 +16,5 @@ serde_yaml = { workspace = true }
 libc = { workspace = true }
 env_logger = { workspace = true }
 csv = "1.1"
+
+procfs = "0.16.0"

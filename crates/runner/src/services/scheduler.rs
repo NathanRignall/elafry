@@ -1,5 +1,3 @@
-use std::io::{Read, Write};
-
 pub struct Schedule {
     pub period: std::time::Duration,
     pub major_frames: Vec<MajorFrame>,
@@ -11,6 +9,7 @@ pub struct MajorFrame {
 
 pub struct MinorFrame {
     pub component_id: uuid::Uuid,
+    pub deadline: std::time::Duration,
 }
 
 pub struct SchedulerService {
@@ -57,43 +56,45 @@ impl SchedulerService {
 
             match &mut component.implentation {
                 Some(implentation) => {
-                    // wake the component
-                    implentation
-                        .control_socket
-                        .socket
-                        .write_all(&[b'w', implentation.control_socket.count])
-                        .unwrap();
-                    implentation.control_socket.count += 1;
-                    let mut buffer = [0; 1];
-                    implentation
-                        .control_socket
-                        .socket
-                        .read_exact(&mut buffer)
-                        .unwrap();
-
-                    let timestamp = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_micros() as u64;
-                    component.times.push(timestamp);
-
-                    // run the component
-                    implentation
-                        .control_socket
-                        .socket
-                        .write_all(&[b'r', implentation.control_socket.count])
-                        .unwrap();
-                    implentation.control_socket.count += 1;
-                    let mut buffer = [0; 1];
-                    implentation
-                        .control_socket
-                        .socket
-                        .read_exact(&mut buffer)
-                        .unwrap();
-
-                    if buffer[0] != b'k' {
-                        log::error!("Failed to run component");
+                    // set the priority of the component to the highest
+                    unsafe {
+                        let ret = libc::sched_setscheduler(
+                            implentation.child_pid,
+                            libc::SCHED_FIFO,
+                            &libc::sched_param { sched_priority: 99 },
+                        );
+                        if ret != 0 {
+                            println!("Failed to set scheduler");
+                        }
                     }
+
+                    // resume the child
+                    unsafe {
+                        libc::kill(implentation.child_pid, libc::SIGCONT);
+                    }
+
+                    // sleep for the deadline
+                    std::thread::sleep(frame.deadline);
+                    
+
+                    // // check if the component is still running
+                    // let child_proc = procfs::process::Process::new(implentation.child_pid).unwrap();
+                    // let child_state = child_proc.stat().unwrap().state;
+
+                    // // if over deadline change priority to lowest
+                    // if child_state != 'T' {
+                    //     log::error!("Component over deadline {:?} {:?} {}", frame.component_id, child_state, frame.deadline.as_micros());
+                        unsafe {
+                            let ret = libc::sched_setscheduler(
+                                implentation.child_pid,
+                                libc::SCHED_IDLE,
+                                &libc::sched_param { sched_priority: 0 },
+                            );
+                            if ret != 0 {
+                                println!("Failed to set scheduler");
+                            }
+                        }
+                    // }
                 }
                 None => {
                     log::error!("Component not started {:?}", frame.component_id);

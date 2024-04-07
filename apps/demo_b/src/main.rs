@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 struct State {
     a: u8,
-    b: u8,
+    count: u8,
 }
 
 struct DemoB {
@@ -13,7 +13,7 @@ struct DemoB {
 
 impl elafry::Component for DemoB {
     fn new() -> Self {
-        DemoB { state: State { a: 0, b: 0 } }
+        DemoB { state: State { a: 0, count: 0 } }
     }
 
     fn run(&mut self, services: &mut elafry::Services) {
@@ -23,20 +23,21 @@ impl elafry::Component for DemoB {
             match message {
                 Some(message) => {
                     let new_a_state = message.data[0];
-                    let new_b_state = message.data[1];
 
                     if new_a_state != self.state.a {
                         self.state.a = new_a_state;
                         services.communication.send_message(2, vec![self.state.a, 1]);
                     }
-
-                    if new_b_state != self.state.b {
-                        self.state.b = new_b_state;
-                    }
                 }
                 None => break,
             }
         }
+
+        // increment count
+        self.state.count += 1;
+
+        // print state
+        println!("B State count: {}", self.state.count);
     }
 
     fn save_state(&self) -> Vec<u8> {
@@ -48,7 +49,7 @@ impl elafry::Component for DemoB {
     }
 
     fn reset_state(&mut self) {
-        self.state = State { a: 0, b: 0 };
+        self.state = State { a: 0, count: 0 };
     }
 }
 

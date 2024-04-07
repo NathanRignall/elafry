@@ -4,12 +4,32 @@ tasks:
       - id: fee6e325-d445-4413-b3fc-ffc0681bded4
         data: !add-component
           component-id: 1f9c6264-5487-41c8-9b4a-e92d2edb2b31
-          component: demo_b
+          component: target/release/demo_b
           core: 3
           version: 1.0.0
 
+  - id: c1f379eb-ed4c-47ce-811c-a78967c65526
+    actions: !blocking
+      - id: a2700416-3692-49bc-971a-9d321c705f35
+        data: !add-state-sync
+          state-sync-id: 39b8dd9c-0870-45aa-bb24-f7daa2fc34c9
+          source:
+            component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
+          target:
+            component-id: 1f9c6264-5487-41c8-9b4a-e92d2edb2b31
+
+  - id: c1f379eb-ed4c-47ce-811c-a78967c65526
+    actions: !non-blocking
+      - id: a31f3fb4-237f-4f7e-a4da-4b3c249783cf
+        data: !wait-state-sync
+          state-sync-id: 39b8dd9c-0870-45aa-bb24-f7daa2fc34c9
+
   - id: ed22dd00-ca92-4c94-831f-4460c6aca606
     actions: !blocking
+      - id: 812c00f3-8874-41fd-9a05-6651c5731a26
+        data: !remove-state-sync
+          state-sync-id: 39b8dd9c-0870-45aa-bb24-f7daa2fc34c9
+
       - id: ae0c002a-9f14-4540-8b54-b4e7d2720c78
         data: !stop-component
           component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
@@ -50,8 +70,10 @@ tasks:
 
       - id: b458f416-3446-4d5c-8320-52565e112df8
         data: !set-schedule
-          frequency: 500
+          deadline: 1000
           major-frames:
             - minor-frames:
                 - component-id: a8b72b60-d420-4c9a-8211-3afb36a1af7a
+                  deadline: 50
                 - component-id: 1f9c6264-5487-41c8-9b4a-e92d2edb2b31
+                  deadline: 50

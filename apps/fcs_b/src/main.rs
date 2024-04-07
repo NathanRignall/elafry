@@ -10,7 +10,9 @@ pub struct SensorData {
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct ControlData {
     thrust: f64,
-    org_timestamp: u64,
+    timestamp: u64,
+    loop_count: u64,
+    update: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -63,6 +65,7 @@ struct State {
     thrust: f64,
     org_timestamp: u64,
     pid_controller: PIDController,
+    loop_count: u64,
 }
 
 struct FcsB {
@@ -76,12 +79,15 @@ impl elafry::Component for FcsB {
                 position: 0.0,
                 thrust: 0.0,
                 org_timestamp: 0,
-                pid_controller: PIDController::new(2.5, 0.0001,50.0, 25.0, 0.0)
+                pid_controller: PIDController::new(2.5, 0.0001,50.0, 25.0, 0.0),
+                loop_count: 0,
             },
         }
     }
 
     fn run(&mut self, services: &mut elafry::Services) {
+        self.state.loop_count += 1;
+
         // do stuff with messages
         loop {
             let message = services.communication.get_message(1);
@@ -108,7 +114,9 @@ impl elafry::Component for FcsB {
         // send message
         let control_data = ControlData {
             thrust: self.state.thrust,
-            org_timestamp: self.state.org_timestamp,
+            timestamp: self.state.org_timestamp,
+            loop_count: self.state.loop_count,
+            update: true,
         };
         let control_data_buf = bincode::serialize(&control_data).unwrap();
         services.communication.send_message(2, control_data_buf);
@@ -127,7 +135,8 @@ impl elafry::Component for FcsB {
             position: 0.0,
             thrust: 0.0,
             org_timestamp: 0,
-            pid_controller: PIDController::new(2.5, 0.0001,50.0, 25.0, 0.0)
+            pid_controller: PIDController::new(2.5, 0.0001,50.0, 25.0, 0.0),
+            loop_count: 0,
         };
     }
 }
