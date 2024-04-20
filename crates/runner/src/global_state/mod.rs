@@ -10,7 +10,7 @@ pub struct Component {
     pub core: usize,
     pub implentation: Option<Implementation>,
     pub times: Vec<u64>,
-    }
+}
 
 pub struct Implementation {
     pub data_socket: Socket,
@@ -235,7 +235,12 @@ impl GlobalState {
         }
     }
 
-    pub fn add_state_sync(&mut self, state_sync_id: uuid::Uuid, source: StateEndpoint, target: StateEndpoint, status: StateSyncStatus) {
+    pub fn add_state_sync(
+        &mut self,
+        state_sync_id: uuid::Uuid,
+        source: StateEndpoint,
+        target: StateEndpoint,
+    ) {
         log::debug!("Adding state sync {}", state_sync_id);
 
         // add the state sync to the state
@@ -244,7 +249,7 @@ impl GlobalState {
             StateSync {
                 source,
                 target,
-                status,
+                status: StateSyncStatus::Created,
             },
         );
     }
@@ -270,7 +275,11 @@ impl GlobalState {
     }
 
     pub fn set_state_sync_status(&mut self, state_sync_id: uuid::Uuid, status: StateSyncStatus) {
-        log::debug!("Setting state sync {} status to {:?}", state_sync_id, status);
+        log::debug!(
+            "Setting state sync {} status to {:?}",
+            state_sync_id,
+            status
+        );
 
         // check if state_sync_id exists in hashmap
         if self.state_sync.contains_key(&state_sync_id) {
@@ -285,12 +294,26 @@ impl GlobalState {
 
 #[cfg(test)]
 mod tests {
-    use crate::services::{communication::Endpoint, scheduler::{MajorFrame, MinorFrame}};
+    use crate::services::{
+        communication::Endpoint,
+        scheduler::{MajorFrame, MinorFrame},
+    };
 
     use super::*;
 
-    #[test] 
+    // setup logging
+    fn setup() {
+        let _ = env_logger::Builder::from_env(
+            env_logger::Env::default().default_filter_or("warn,info,debug,trace"),
+        )
+        .is_test(true)
+        .try_init();
+    }
+
+    #[test]
     fn test_global_state_component() {
+        setup();
+
         let mut state = GlobalState::new();
 
         let id = uuid::Uuid::new_v4();
@@ -313,13 +336,19 @@ mod tests {
         assert_eq!(state.total_components(), 1);
         assert_eq!(state.get_component(id).unwrap().path, path);
         assert_eq!(state.get_component(id).unwrap().core, core);
-        assert_eq!(state.get_component(id).unwrap().implentation.is_none(), true); 
+        assert_eq!(
+            state.get_component(id).unwrap().implentation.is_none(),
+            true
+        );
 
         state.get_component_mut(id).unwrap().times.push(1);
         assert_eq!(state.get_component(id).unwrap().times.len(), 1);
 
         state.add_component_implementation(id, implementation);
-        assert_eq!(state.get_component(id).unwrap().implentation.is_some(), true);
+        assert_eq!(
+            state.get_component(id).unwrap().implentation.is_some(),
+            true
+        );
 
         state.start_component(id);
         assert_eq!(state.get_component(id).unwrap().run, true);
@@ -328,18 +357,26 @@ mod tests {
         assert_eq!(state.get_component(id).unwrap().run, false);
 
         state.remove_component_implementation(id);
-        assert_eq!(state.get_component(id).unwrap().implentation.is_none(), true);
+        assert_eq!(
+            state.get_component(id).unwrap().implentation.is_none(),
+            true
+        );
 
         state.remove_component(id);
         assert_eq!(state.total_components(), 1);
         assert_eq!(state.get_component(id).unwrap().remove, true);
         assert_eq!(state.get_component(id).unwrap().run, false);
-        assert_eq!(state.get_component(id).unwrap().implentation.is_none(), true);
+        assert_eq!(
+            state.get_component(id).unwrap().implentation.is_none(),
+            true
+        );
     }
 
     #[test]
     #[should_panic]
     fn test_global_state_component_not_found() {
+        setup();
+
         let state = GlobalState::new();
 
         let id = uuid::Uuid::new_v4();
@@ -349,6 +386,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_global_state_component_not_found_mut() {
+        setup();
+
         let mut state = GlobalState::new();
 
         let id = uuid::Uuid::new_v4();
@@ -358,6 +397,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_global_state_component_not_found_start() {
+        setup();
+
         let mut state = GlobalState::new();
 
         let id = uuid::Uuid::new_v4();
@@ -367,6 +408,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_global_state_component_not_found_stop() {
+        setup();
+
         let mut state = GlobalState::new();
 
         let id = uuid::Uuid::new_v4();
@@ -376,6 +419,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_global_state_component_not_found_add_implementation() {
+        setup();
+
         let mut state = GlobalState::new();
 
         let id = uuid::Uuid::new_v4();
@@ -398,6 +443,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_global_state_component_not_found_remove() {
+        setup();
+
         let mut state = GlobalState::new();
 
         let id = uuid::Uuid::new_v4();
@@ -407,6 +454,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_global_state_component_not_found_implementation() {
+        setup();
+
         let mut state = GlobalState::new();
 
         let id = uuid::Uuid::new_v4();
@@ -416,6 +465,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_global_state_component_not_initialized() {
+        setup();
+
         let mut state = GlobalState::new();
 
         let id = uuid::Uuid::new_v4();
@@ -428,6 +479,8 @@ mod tests {
 
     #[test]
     fn test_global_state_schedule_empty() {
+        setup();
+
         let mut state = GlobalState::new();
 
         let schedule = Schedule {
@@ -442,6 +495,8 @@ mod tests {
 
     #[test]
     fn test_global_state_schedule() {
+        setup();
+
         let mut state = GlobalState::new();
 
         let id = uuid::Uuid::new_v4();
@@ -481,6 +536,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_global_state_schedule_invalid() {
+        setup();
+
         let mut state = GlobalState::new();
 
         let schedule = Schedule {
@@ -499,6 +556,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_global_state_schedule_invalid_component() {
+        setup();
+
         let mut state = GlobalState::new();
 
         let id = uuid::Uuid::new_v4();
@@ -522,6 +581,8 @@ mod tests {
 
     #[test]
     fn test_global_state_route() {
+        setup();
+
         let mut state = GlobalState::new();
 
         let source = RouteEndpoint {
@@ -546,6 +607,8 @@ mod tests {
 
     #[test]
     fn test_global_state_message() {
+        setup();
+
         let mut state = GlobalState::new();
 
         let channel_id = 0;
@@ -564,6 +627,8 @@ mod tests {
 
     #[test]
     fn test_global_state_message_empty() {
+        setup();
+
         let mut state = GlobalState::new();
 
         let channel_id = 0;
@@ -573,7 +638,63 @@ mod tests {
     }
 
     #[test]
+    fn test_global_state_sync() {
+        setup();
+
+        let mut state = GlobalState::new();
+
+        let state_sync_id = uuid::Uuid::new_v4();
+        let source = StateEndpoint {
+            component_id: uuid::Uuid::new_v4(),
+        };
+        let target = StateEndpoint {
+            component_id: uuid::Uuid::new_v4(),
+        };
+
+        state.add_state_sync(state_sync_id, source, target);
+
+        assert_eq!(state.state_sync.len(), 1);
+        assert_eq!(
+            state.get_state_sync_status(state_sync_id),
+            StateSyncStatus::Created
+        );
+
+        state.set_state_sync_status(state_sync_id, StateSyncStatus::Started);
+        assert_eq!(
+            state.get_state_sync_status(state_sync_id),
+            StateSyncStatus::Started
+        );
+
+        state.remove_state_sync(state_sync_id);
+        assert_eq!(state.state_sync.len(), 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_global_state_sync_not_found() {
+        setup();
+
+        let state = GlobalState::new();
+
+        let state_sync_id = uuid::Uuid::new_v4();
+        state.get_state_sync_status(state_sync_id);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_global_state_sync_not_found_set() {
+        setup();
+
+        let mut state = GlobalState::new();
+
+        let state_sync_id = uuid::Uuid::new_v4();
+        state.set_state_sync_status(state_sync_id, StateSyncStatus::Created);
+    }
+
+    #[test]
     fn test_global_state_done() {
+        setup();
+
         let mut state = GlobalState::new();
 
         assert_eq!(state.get_done(), false);
@@ -581,5 +702,18 @@ mod tests {
         state.set_done(true);
         assert_eq!(state.get_done(), true);
     }
-    
+
+    #[test]
+    fn test_sync_status() {
+        setup();
+
+        // test clone
+        let status = StateSyncStatus::Created;
+        let status_clone = status.clone();
+        assert_eq!(status, status_clone);
+
+        // test debug
+        let status_debug = format!("{:?}", status);
+        assert_eq!(status_debug, "Created");
+    }
 }

@@ -357,14 +357,25 @@ pub fn wait_state_sync(
 
 #[cfg(test)]
 mod tests {
-    use crate::global_state::Socket;
+    use crate::global_state::{Socket, StateEndpoint};
 
     use super::*;
     use std::sync::mpsc::channel;
     use std::thread;
 
+    // setup logging
+    fn setup() {
+        let _ = env_logger::Builder::from_env(
+            env_logger::Env::default().default_filter_or("warn,info,debug,trace"),
+        )
+        .is_test(true)
+        .try_init();
+    }
+
     #[test]
     fn test_add_component_implementation() {
+        setup();
+
         let path = "ls";
         let core = 0;
 
@@ -376,6 +387,8 @@ mod tests {
 
     #[test]
     fn test_remove_component_implementation() {
+        setup();
+
         let path = "ls";
         let core = 0;
 
@@ -386,6 +399,8 @@ mod tests {
 
     #[test]
     fn test_add_component() {
+        setup();
+
         let (sender, receiver) = channel();
         let actions = Arc::new(Mutex::new(Vec::new()));
         let done_implement = Arc::new(Mutex::new(HashMap::new()));
@@ -458,6 +473,8 @@ mod tests {
 
     #[test]
     fn test_remove_component() {
+        setup();
+
         let (sender, receiver) = channel();
         let actions = Arc::new(Mutex::new(Vec::new()));
         let done_remove = Arc::new(Mutex::new(Vec::new()));
@@ -542,5 +559,38 @@ mod tests {
             state.get_component(id).unwrap().implentation.is_none(),
             true
         );
+    }
+
+    #[test]
+    fn test_wait_state_sync() {
+        setup();
+
+        let mut state = crate::global_state::GlobalState::new();
+        let mut action_status = ActionState::Started;
+
+        let state_sync_id = uuid::Uuid::new_v4();
+        let source = StateEndpoint {
+            component_id: uuid::Uuid::new_v4(),
+        };
+        let target = StateEndpoint {
+            component_id: uuid::Uuid::new_v4(),
+        };
+
+        let data = elafry::types::configuration::WaitStateSyncData {
+            state_sync_id: state_sync_id,
+        };
+
+        // add the state sync to the state first
+        state.add_state_sync(state_sync_id, source, target);
+
+        wait_state_sync(&mut state, &mut action_status, data.clone());
+
+        assert_eq!(action_status, ActionState::Running);
+
+        state.set_state_sync_status(data.state_sync_id, StateSyncStatus::Synced);
+
+        wait_state_sync(&mut state, &mut action_status, data.clone());
+
+        assert_eq!(action_status, ActionState::Completed);
     }
 }
