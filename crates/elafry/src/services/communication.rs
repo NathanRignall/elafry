@@ -125,3 +125,147 @@ impl Manager {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // setup logging
+    fn setup() {
+        let _ = env_logger::Builder::from_env(
+            env_logger::Env::default().default_filter_or("error,warn,info,debug,trace"),
+        )
+        .is_test(true)
+        .try_init();
+    }
+
+    #[test]
+    fn test_communication() {
+        setup();
+
+        let (socket, child_socket) = UnixStream::pair().unwrap();
+        socket.set_nonblocking(true).unwrap();
+        child_socket.set_nonblocking(true).unwrap();
+
+        let mut manager_1 = Manager::new(socket);
+        let mut manager_2 = Manager::new(child_socket);
+
+        manager_1.send_message(1, vec![7, 8, 9]);
+        manager_1.send_message(1, vec![4, 5, 6]);
+
+        manager_1.send_message(2, vec![10, 11, 12]);
+        manager_2.run();
+
+        let message = manager_2.get_message(1).unwrap();
+        assert_eq!(message.data, vec![7, 8, 9]);
+
+        let message = manager_2.get_message(1).unwrap();
+        assert_eq!(message.data, vec![4, 5, 6]);
+
+        let message = manager_2.get_message(2).unwrap();
+        assert_eq!(message.data, vec![10, 11, 12]);
+
+        let message = manager_2.get_message(1);
+        assert_eq!(message, None);
+
+        let message = manager_2.get_message(2);
+        assert_eq!(message, None);
+    }
+
+    #[test]
+    fn test_communication_zero_length() {
+        setup();
+
+        let (socket, child_socket) = UnixStream::pair().unwrap();
+        socket.set_nonblocking(true).unwrap();
+        child_socket.set_nonblocking(true).unwrap();
+
+        let mut manager = Manager::new(child_socket);
+
+        // put bad data on socket
+        let mut stream = &socket;
+        let length_buf = [0, 0, 0, 0];
+        stream.write_all(&length_buf).unwrap();
+
+        manager.run();
+
+        let message = manager.get_message(1);
+        assert_eq!(message, None);
+    }
+
+    #[test]
+    fn test_communication_short_length() {
+        setup();
+
+        let (socket, child_socket) = UnixStream::pair().unwrap();
+        child_socket.set_nonblocking(true).unwrap();
+
+        let mut manager = Manager::new(child_socket);
+
+        // put bad data on socket
+        let mut stream = &socket;
+        let length_buf = [0, 0, 0, 1];
+        let data = [1];
+        stream.write_all(&length_buf).unwrap();
+        stream.write_all(&data).unwrap();
+
+        manager.run();
+
+        let message = manager.get_message(1);
+        assert_eq!(message, None);
+    }
+
+    #[test]
+    fn test_communication_bad_data() {
+        setup();
+
+        let (socket, child_socket) = UnixStream::pair().unwrap();
+        child_socket.set_nonblocking(true).unwrap();
+
+        let mut manager = Manager::new(child_socket);
+
+        // put bad data on socket
+        let mut stream = &socket;
+        let length_buf = [0, 0, 0, 5];
+        let data = [1, 2, 3, 4, 5];
+        stream.write_all(&length_buf).unwrap();
+        stream.write_all(&data).unwrap();
+
+        manager.run();
+
+        let message = manager.get_message(1);
+        assert_eq!(message, None);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_communication_bad_socket() {
+        setup();
+
+        let (socket, child_socket) = UnixStream::pair().unwrap();
+        child_socket.set_nonblocking(true).unwrap();
+
+        let mut manager = Manager::new(child_socket);
+
+        // close socket
+        drop(socket);
+
+        manager.run();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_communication_bad_socket_write() {
+        setup();
+        
+        let (socket, child_socket) = UnixStream::pair().unwrap();
+        child_socket.set_nonblocking(true).unwrap();
+
+        let mut manager = Manager::new(child_socket);
+
+        // close socket
+        drop(socket);
+
+        manager.send_message(1, vec![1, 2, 3]);
+    }
+}

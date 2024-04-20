@@ -38,3 +38,108 @@ impl Message {
     }
     
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // setup logging
+    fn setup() {
+        let _ = env_logger::Builder::from_env(
+            env_logger::Env::default().default_filter_or("warn,info,debug,trace"),
+        )
+        .is_test(true)
+        .try_init();
+    }
+
+    #[test]
+    fn test_encode_decode() {
+        setup();
+
+        let message = Message {
+            channel_id: 1,
+            count: 2,
+            data: vec![3, 4, 5],
+        };
+
+        let encoded = message.encode();
+        let decoded = Message::decode(&encoded).unwrap();
+
+        assert_eq!(message, decoded);
+    }
+
+    #[test]
+    fn test_decode_empty() {
+        setup();
+
+        let data = vec![];
+        let decoded = Message::decode(&data);
+
+        assert_eq!(decoded, None);
+    }
+
+    #[test]
+    fn test_decode_short() {
+        setup();
+
+        let data = vec![1, 2, 3, 4];
+        let decoded = Message::decode(&data);
+
+        assert_eq!(decoded, None);
+    }
+
+    #[test]
+    fn test_decode() {
+        setup();
+
+        let data = vec![0, 0, 0, 1, 5, 6, 7, 8];
+        let decoded = Message::decode(&data).unwrap();
+
+        assert_eq!(decoded.channel_id, 1);
+        assert_eq!(decoded.count, 5);
+        assert_eq!(decoded.data, vec![6, 7, 8]);
+    }
+
+    #[test]
+    fn test_encode() {
+        setup();
+
+        let message = Message {
+            channel_id: 1,
+            count: 2,
+            data: vec![3, 4, 5],
+        };
+
+        let encoded = message.encode();
+
+        assert_eq!(encoded, vec![0, 0, 0, 1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_type() {
+        setup();
+        
+        let message = Message {
+            channel_id: 1,
+            count: 2,
+            data: vec![3, 4, 5],
+        };
+
+        // test eq
+        assert_eq!(message, message.clone());
+
+        // test partial eq
+        assert_eq!(message, Message {
+            channel_id: 1,
+            count: 2,
+            data: vec![3, 4, 5],
+        });
+
+        // test debug
+        assert_eq!(format!("{:?}", message), "Message { channel_id: 1, count: 2, data: [3, 4, 5] }");
+
+        assert_eq!(message.channel_id, 1);
+        assert_eq!(message.count, 2);
+        assert_eq!(message.data, vec![3, 4, 5]);
+    }
+}
