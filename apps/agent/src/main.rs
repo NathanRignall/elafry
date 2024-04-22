@@ -9,7 +9,7 @@ impl elafry::Component for Agent {
     fn new() -> Agent {
         Agent {
             loop_count: 0,
-            plant: true,
+            plant: false,
         }
     }
 
