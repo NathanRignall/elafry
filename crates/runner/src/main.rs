@@ -1,10 +1,10 @@
 use crate::services::{
-    communication::CommunicationService, management::ManagementService, scheduler::SchedulerService, state::StateService
+    communication::CommunicationService, management::ManagementService,
+    scheduler::SchedulerService, state::StateService,
 };
 
-mod services;
 mod global_state;
-
+mod services;
 
 fn main() {
     env_logger::init();
@@ -44,7 +44,10 @@ fn main() {
     let mut overruns = 0;
     let mut times = vec![];
 
-    log::info!("Starting runner loop with period {}us", global_state.schedule.period.as_micros());
+    log::info!(
+        "Starting runner loop with period {}us",
+        global_state.schedule.period.as_micros()
+    );
 
     loop {
         let last_time = std::time::Instant::now();
@@ -99,7 +102,13 @@ fn main() {
             overruns,
             3,
         ));
-        management_service.run(&mut global_state);
+
+        // if there is less than 100us left in the period, skip management
+        let now = std::time::Instant::now();
+        let duration = now.duration_since(last_time);
+        if duration <= global_state.schedule.period - std::time::Duration::from_micros(100) {
+            management_service.run(&mut global_state);
+        }
 
         times.push((
             std::time::SystemTime::now()
@@ -128,7 +137,7 @@ fn main() {
             std::thread::sleep(sleep);
         } else {
             overruns += 1;
-            log::warn!(
+            log::error!(
                 "Warning: loop took longer than period {}us - {}us",
                 duration.as_micros(),
                 last_sleep.as_micros()
@@ -138,7 +147,6 @@ fn main() {
         last_duration = duration;
         last_sleep = sleep;
     }
-
 
     let mut writer = csv::Writer::from_path("times.csv").expect("Failed to open file");
     for time in times.iter() {

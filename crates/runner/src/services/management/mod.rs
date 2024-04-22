@@ -15,9 +15,10 @@ pub mod background;
 
 enum State {
     Idle,
-    Loading {
+    Waiting {
         configuration: String,
     },
+    Loading,
     Running {
         current_task: usize,
         tasks: Vec<elafry::types::configuration::Task>,
@@ -43,6 +44,7 @@ struct Background {
 #[derive(Clone)]
 struct BackgroundData {
     actions: Arc<Mutex<Vec<background::NonBlockingImplementationData>>>,
+    done_configuration: Arc<Mutex<Option<elafry::types::configuration::Configuration>>>,
     done_implement: Arc<Mutex<HashMap<Uuid, Implementation>>>,
     done_remove: Arc<Mutex<Vec<Uuid>>>,
 }
@@ -56,19 +58,31 @@ impl ManagementService {
     pub fn new(configuration: String) -> ManagementService {
         let (sender, receiver) = mpsc::channel();
         let non_blocking_actions = Arc::new(Mutex::new(Vec::new()));
+        let done_configuration = Arc::new(Mutex::new(None));
         let done_implement = Arc::new(Mutex::new(HashMap::new()));
         let done_remove = Arc::new(Mutex::new(Vec::new()));
 
         let non_blocking_actions_clone = non_blocking_actions.clone();
+        let done_configuration_clone = done_configuration.clone();
         let done_implement_clone = done_implement.clone();
         let done_remove_clone = done_remove.clone();
 
         let thread = std::thread::spawn(move || {
+            // set core affinity to core 0
+            unsafe {
+                let mut cpu_set: libc::cpu_set_t = std::mem::zeroed();
+                libc::CPU_SET(0, &mut cpu_set);
+                let ret = libc::sched_setaffinity(0, std::mem::size_of_val(&cpu_set), &cpu_set);
+                if ret != 0 {
+                    println!("Failed to set affinity");
+                }
+            }
+
             // use libc to set the process sechdeuler to SCHEDULER NORMAL with a priority of -20
             unsafe {
                 let ret = libc::pthread_setschedparam(
                     libc::pthread_self(),
-                    libc::SCHED_OTHER,
+                    libc::SCHED_IDLE,
                     &libc::sched_param { sched_priority: 0 },
                 );
                 if ret != 0 {
@@ -76,16 +90,23 @@ impl ManagementService {
                 }
             }
 
-            background::main(receiver, non_blocking_actions, done_implement, done_remove);
+            background::main(
+                receiver,
+                non_blocking_actions,
+                done_configuration,
+                done_implement,
+                done_remove,
+            );
         });
 
         ManagementService {
-            state: State::Loading { configuration },
+            state: State::Waiting { configuration },
             background: Background {
                 _thread: thread,
                 sender,
                 data: BackgroundData {
                     actions: non_blocking_actions_clone,
+                    done_configuration: done_configuration_clone,
                     done_implement: done_implement_clone,
                     done_remove: done_remove_clone,
                 },
@@ -106,6 +127,8 @@ impl ManagementService {
             None => {}
         }
 
+        // log::debug!("Running management service");
+
         // run the management service state machine
         match &mut self.state {
             State::Idle => {
@@ -120,7 +143,7 @@ impl ManagementService {
 
                         // convert message to string
                         let message = std::str::from_utf8(&message.data).unwrap();
-                        self.state = State::Loading {
+                        self.state = State::Waiting {
                             configuration: message.to_string(),
                         };
                     }
@@ -129,39 +152,67 @@ impl ManagementService {
                     }
                 }
             }
-            State::Loading { configuration } => {
+            State::Waiting { configuration } => {
+                log::debug!("State Waiting");
+
+                // try get a lock on actions
+                if let Ok(mut actions) = self.background.data.actions.try_lock() {
+                    // push the action to the actions vector
+                    actions.push(
+                        background::NonBlockingImplementationData::LoadConfiguration(
+                            background::LoadConfiguration {
+                                path: configuration.to_string(),
+                            },
+                        ),
+                    );
+
+                    // send signal to background thread
+                    self.background.sender.send(()).unwrap();
+
+                    // change state to loading
+                    self.state = State::Loading;
+                } else {
+                    log::warn!("Failed to get lock on actions");
+                }
+            }
+
+            State::Loading => {
                 log::debug!("State Loading");
 
-                // read the configuration file
-                let path = format!("configuration/{}", configuration);
-                let file = std::fs::File::open(path).unwrap();
-                let configuration: Result<
-                    elafry::types::configuration::Configuration,
-                    serde_yaml::Error,
-                > = serde_yaml::from_reader(file);
+                // try get a lock on done_configuration
+                if let Ok(mut done_configuration) =
+                    self.background.data.done_configuration.try_lock()
+                {
+                    // get clone of done_configuration
+                    let configuration = done_configuration.clone();
 
-                // check if the configuration file was read successfully
-                match configuration {
-                    Ok(configuration) => {
-                        log::debug!("Configuration file read successfully");
+                    match configuration {
+                        Some(configuration) => {
+                            // check if the configuration has any tasks
+                            if configuration.tasks.is_empty() {
+                                log::error!("No tasks in configuration file");
+                                self.state = State::Idle;
+                            } else {
+                                self.state = State::Running {
+                                    current_task: 0,
+                                    tasks: configuration.tasks,
+                                    blocked: false,
+                                    action_status: HashMap::new(),
+                                };
 
-                        // check if the configuration has any tasks
-                        if configuration.tasks.is_empty() {
-                            log::error!("No tasks in configuration file");
-                            self.state = State::Idle;
-                        } else {
-                            self.state = State::Running {
-                                current_task: 0,
-                                tasks: configuration.tasks,
-                                blocked: false,
-                                action_status: HashMap::new(),
-                            };
+                                // empty the done_configuration
+                                *done_configuration = None;
+
+                                // return
+                                return;
+                            }
+                        }
+                        None => {
+                            log::debug!("Not received configuration from background thread");
                         }
                     }
-                    Err(error) => {
-                        log::error!("Error reading configuration file: {}", error);
-                        self.state = State::Idle;
-                    }
+                } else {
+                    log::warn!("Failed to get lock on done_configuration");
                 }
             }
             State::Running {
@@ -315,7 +366,7 @@ impl ManagementService {
                     },
                     StateEndpoint {
                         component_id: data.target.component_id,
-                    }
+                    },
                 );
             }
             elafry::types::configuration::BlockingData::RemoveStateSync(data) => {

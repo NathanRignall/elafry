@@ -7,14 +7,20 @@ use std::sync::mpsc::Sender;
 use std::sync::{mpsc, Arc, Mutex};
 
 use command_fds::{CommandFdExt, FdMapping};
+use elafry::types::configuration::Configuration;
 use uuid::Uuid;
 
 use crate::global_state::{Implementation, StateSyncStatus};
 use crate::services::management::ActionState;
 
 pub enum NonBlockingImplementationData {
+    LoadConfiguration(LoadConfiguration),
     AddComponent(AddComponentImplementation),
     RemoveComponent(RemoveComponentImplementation),
+}
+
+pub struct LoadConfiguration {
+    pub path: String,
 }
 
 pub struct AddComponentImplementation {
@@ -31,6 +37,7 @@ pub struct RemoveComponentImplementation {
 pub fn main(
     receiver: mpsc::Receiver<()>,
     non_blocking_actions: Arc<Mutex<Vec<NonBlockingImplementationData>>>,
+    done_configuration: Arc<Mutex<Option<Configuration>>>,
     done_implement: Arc<Mutex<HashMap<Uuid, Implementation>>>,
     done_remove: Arc<Mutex<Vec<Uuid>>>,
 ) {
@@ -45,6 +52,28 @@ pub fn main(
 
                 for action in non_blocking_actions.iter_mut() {
                     match action {
+                        NonBlockingImplementationData::LoadConfiguration(data) => {
+                            log::debug!("Loading configuration {}", data.path);
+
+                            // read the configuration file
+                            let path = format!("configuration/{}", data.path);
+                            let file = std::fs::File::open(path).unwrap();
+                            let configuration: Result<
+                                elafry::types::configuration::Configuration,
+                                serde_yaml::Error,
+                            > = serde_yaml::from_reader(file);
+
+                            // get lock on done_configuration
+                            let mut done_configuration = done_configuration.lock().unwrap();
+
+                            // do not overwrite the configuration if it is already set
+                            if done_configuration.is_some() {
+                                continue;
+                            }
+
+                            // set the configuration in the done_configuration
+                            *done_configuration = Some(configuration.unwrap());
+                        }
                         NonBlockingImplementationData::AddComponent(data) => {
                             // get the implementation
                             let implementation: Implementation =
@@ -135,8 +164,8 @@ pub fn add_component_implementation(
     unsafe {
         let ret = libc::sched_setscheduler(
             child.id() as libc::pid_t,
-            libc::SCHED_FIFO,
-            &libc::sched_param { sched_priority: 99 },
+            libc::SCHED_IDLE,
+            &libc::sched_param { sched_priority: 0 },
         );
         if ret != 0 {
             log::error!("Failed to set scheduler");
@@ -144,7 +173,7 @@ pub fn add_component_implementation(
     }
 
     // wait for the component to be ready
-    std::thread::sleep(std::time::Duration::from_micros(100));
+    std::thread::sleep(std::time::Duration::from_micros(50));
 
     log::trace!("BACKGROUND: Done adding component");
 
@@ -219,7 +248,7 @@ pub fn add_component(
                     // set the status to done
                     *action_status = ActionState::Completed;
                 } else {
-                    log::warn!("Component {} not done", data.component_id);
+                    log::debug!("Component {} not done", data.component_id);
                 }
             } else {
                 log::warn!("Failed to get lock on done_implement");
@@ -302,7 +331,7 @@ pub fn remove_component(
                     // set the status to done
                     *action_status = ActionState::Completed;
                 } else {
-                    log::warn!("Component {} not done", data.component_id);
+                    log::debug!("Component {} not done", data.component_id);
                 }
             } else {
                 log::warn!("Failed to get lock on done_remove");
@@ -414,6 +443,7 @@ mod tests {
             main(
                 receiver,
                 actions_clone,
+                Arc::new(Mutex::new(None)),
                 done_implement_clone,
                 Arc::new(Mutex::new(Vec::new())),
             );
@@ -508,6 +538,7 @@ mod tests {
             main(
                 receiver,
                 actions_clone,
+                Arc::new(Mutex::new(None)),
                 Arc::new(Mutex::new(HashMap::new())),
                 done_remove_clone,
             );
