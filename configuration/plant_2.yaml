@@ -4,7 +4,7 @@ tasks:
       - id: f4af9d65-4b2f-4912-8a00-1a3a7e81d12b
         data: !add-component
           component-id: 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
-          component: target/release/fcs_b
+          component: fcs_b
           core: 3
           version: 1.0.0
 

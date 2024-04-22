@@ -4,7 +4,7 @@ tasks:
       - id: 0bab7599-4dad-455f-adec-d30663db087d
         data: !add-component
           component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
-          component: target/release/plant
+          component: plant
           core: 2
           version: 1.0.0
 
@@ -13,7 +13,7 @@ tasks:
       - id: 3c52ef52-e201-4aad-a91b-dfce789e4113
         data: !add-component
           component-id: 4d2f439b-ae60-42b6-ae45-b4db5d020f21
-          component: target/release/fcs_a
+          component: fcs_a
           core: 3
           version: 1.0.0
 
