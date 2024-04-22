@@ -78,7 +78,7 @@ tasks:
                 - component-id: 9a069153-c335-47c5-a653-dec6c0e7c280
                   deadline: 150
                 - component-id: 4310fde1-8c21-4054-a5d6-8b64c2c2afcd
-                  deadline: 50
+                  deadline: 150
 
   - id: 956dac0d-5c1c-4144-8850-6759b91b776d
     actions: !non-blocking
