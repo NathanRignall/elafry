@@ -25,7 +25,7 @@ impl elafry::Component for Agent {
             services.communication.send_message(1, control_data_buf);
         }
         // when loop_count is 25000, send a message
-        if self.loop_count == 25000 && self.plant {
+        if self.loop_count == 15000 && self.plant {
         log::info!("-----Plant Configuration 2-----");
         let control_data_buf = "plant_2.yaml".as_bytes().to_vec();
         services.communication.send_message(1, control_data_buf);
@@ -36,8 +36,8 @@ impl elafry::Component for Agent {
         let control_data_buf = "plant_3.yaml".as_bytes().to_vec();
         services.communication.send_message(1, control_data_buf);
         }
-        // when loop_count is 50000, send a message
-        if self.loop_count == 50000 && self.plant {
+        // when loop_count is 60000, send a message
+        if self.loop_count == 60000 && self.plant {
         log::info!("-----END-----");
         let control_data_buf = "kill".as_bytes().to_vec();
         services.communication.send_message(0, control_data_buf);

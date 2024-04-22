@@ -35,9 +35,6 @@ impl elafry::Component for DemoA {
 
         // increment count
         self.state.count += 1;
-
-        // print state
-        println!("A State count: {}", self.state.count);
     }
 
     fn save_state(&self) -> Vec<u8> {

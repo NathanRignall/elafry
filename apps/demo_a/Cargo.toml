@@ -13,3 +13,8 @@ bincode = { workspace = true }
 log = { workspace = true }
 
 csv = "1.1"
+
+[[bin]]
+name = "demo_a"
+test = false
+bench = false

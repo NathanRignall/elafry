@@ -11,3 +11,8 @@ elafry = { workspace = true, features=["instrument"]}
 serde = { workspace = true }
 bincode = { workspace = true }
 log = { workspace = true }
+
+[[bin]]
+name = "agent"
+test = false
+bench = false

@@ -114,12 +114,12 @@ impl elafry::Component for Plant {
 
         // at 200, set setpoint to 50
         if self.state.state_count == 200 {
-            self.state.setpoint = 50.0;
+            self.state.setpoint = 10.0;
         }
 
-        // at 5000, set setpoint to 70
+        // at 5000, set setpoint to 20
         if self.state.state_count == 5000 {
-            self.state.setpoint = 70.0;
+            self.state.setpoint = 20.0;
         }
 
         // // at 3000, set setpoint to 40
