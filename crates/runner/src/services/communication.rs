@@ -137,7 +137,7 @@ impl CommunicationService {
                                         }
                                     }
                                     None => {
-                                        log::warn!(
+                                        log::debug!(
                                             "No route found for: {:?}",
                                             RouteEndpoint {
                                                 endpoint: Endpoint::Component(*id),
@@ -246,7 +246,7 @@ impl CommunicationService {
                             }
                         }
                         None => {
-                            log::warn!(
+                            log::debug!(
                                 "No route found for: {:?}",
                                 RouteEndpoint {
                                     endpoint: Endpoint::Address(address),
