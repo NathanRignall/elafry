@@ -4,7 +4,7 @@ use std::sync::{mpsc, Arc, Mutex};
 
 use uuid::Uuid;
 
-use crate::global_state::{Implementation, StateEndpoint, StateSyncStatus};
+use crate::global_state::{Implementation, StateEndpoint};
 use crate::services::communication::Endpoint;
 use crate::services::scheduler::{MajorFrame, MinorFrame};
 
@@ -315,8 +315,7 @@ impl ManagementService {
                     },
                     StateEndpoint {
                         component_id: data.target.component_id,
-                    },
-                    StateSyncStatus::Created,
+                    }
                 );
             }
             elafry::types::configuration::BlockingData::RemoveStateSync(data) => {

@@ -33,7 +33,7 @@ fn main() {
 
     let mut global_state = global_state::GlobalState::new();
 
-    let mut communication_service = CommunicationService::new();
+    let mut communication_service = CommunicationService::new(5000);
     let mut management_service = ManagementService::new("default.yaml".to_string());
     let mut scheduler_service = SchedulerService::new();
     let mut state_service = StateService::new();
