@@ -42,10 +42,20 @@ impl CommunicationService {
         for (id, component) in state.components.iter_mut() {
             let mut length_buf = [0; 4];
 
-            // loop for a maximum of 10 times until no more data is available
-            for _ in 0..10 {
+            // don't read if component is not running
+            if !component.run {
+                continue;
+            }
+
+            // loop for a maximum of 5 times until no more data is available
+            for _ in 0..5 {
                 match &mut component.implentation {
                     Some(implentation) => {
+                        // check if stoped
+                        if !component.run {
+                            break;
+                        }
+
                         match implentation.data_socket.socket.read_exact(&mut length_buf) {
                             Ok(_) => {
                                 // get length of message
@@ -147,14 +157,14 @@ impl CommunicationService {
                         }
                     }
                     None => {
-                        continue;
+                        break;
                     }
                 }
             }
         }
 
         // check for data on udp socket
-        for _ in 0..state.total_components() * 10 {
+        for _ in 0..state.total_components() * 5 {
             let mut udp_buf = [0; 1024];
 
             match self.udp_socket.recv_from(&mut udp_buf) {
@@ -264,6 +274,14 @@ impl CommunicationService {
                     continue;
                 }
             };
+
+            // check if stoped
+            if !component.run {
+                // clear buffer
+                self.component_exit_buffer.remove(id);
+
+                continue;
+            }
 
             for message in messages.iter() {
                 let message_buf = Message::encode(message);
@@ -486,7 +504,6 @@ mod tests {
         let message = Message::decode(&message_buf).unwrap();
 
         assert_eq!(message.data, vec![1, 2, 3]);
-    
     }
 
     #[test]
@@ -593,7 +610,9 @@ mod tests {
         let length = message_buf.len() as u32;
         let mut length_buf = length.to_be_bytes().to_vec();
         length_buf.append(&mut message_buf.clone());
-        udp_socket.send_to(&length_buf, udp_socket.local_addr().unwrap()).unwrap();
+        udp_socket
+            .send_to(&length_buf, udp_socket.local_addr().unwrap())
+            .unwrap();
 
         communication_service.run(&mut state);
 
@@ -601,5 +620,4 @@ mod tests {
 
         assert_eq!(message.data, vec![1, 2, 3]);
     }
-
 }

@@ -4,7 +4,7 @@ tasks:
       - id: f3fd3273-750c-480c-ad84-6c9d700b75d6
         data: !add-component
           component-id: a8b72b60-d420-4c9a-8211-3afb36a1af7a
-          component: target/release/agent
+          component: agent
           core: 2
           version: 1.0.0
 
