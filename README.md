@@ -16,5 +16,5 @@ sudo RUST_LOG=info target/release/runner
 
 ## Info
 
-- [/crates](/crates): software infrastructure
-- [/apps](/apps): example applications
+- [/crates](crates): software infrastructure
+- [/apps](apps): example applications
